@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <title>PoliMarket - Cliente Web (Flask)</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 24px; background: #f5f7fb; }
+        h1, h2 { margin-bottom: 8px; }
+        .card { border: 1px solid #d8deea; background: #fff; padding: 12px; margin-bottom: 16px; border-radius: 8px; }
+        label { display: block; margin-top: 8px; font-weight: bold; }
+        input, textarea, button { width: 100%; padding: 8px; margin-top: 4px; box-sizing: border-box; }
+        button { width: auto; cursor: pointer; border: 1px solid #2d5be3; background: #2d5be3; color: #fff; border-radius: 6px; }
+        table { border-collapse: collapse; width: 100%; margin-top: 8px; }
+        th, td { border: 1px solid #ddd; padding: 6px; text-align: left; }
+        .flash { padding: 10px; border-radius: 4px; margin-bottom: 8px; }
+        .success { background: #e6ffed; border: 1px solid #8fd19e; }
+        .warning { background: #fff4e5; border: 1px solid #f3c57a; }
+        .info { background: #e9f3ff; border: 1px solid #8bb9f2; }
+        .tab-menu { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 16px; }
+        .tab-button { background: #eef2ff; color: #1c2e7a; border: 1px solid #c8d4ff; }
+        .tab-button.active { background: #2d5be3; border-color: #2d5be3; color: #fff; }
+        .tab-panel { display: none; }
+        .tab-panel.active { display: block; }
+        .split { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        @media (max-width: 900px) { .split { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+    <h1>PoliMarket - Cliente Web (Flask)</h1>
+    <p>Menu por requerimiento funcional (RF) y pestaña separada para consultas.</p>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="flash {{ category }}">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <nav class="tab-menu">
+        <button class="tab-button active" data-tab="tab-rf1" type="button">RF1 - Autorizar vendedor</button>
+        <button class="tab-button" data-tab="tab-rf2" type="button">RF2 - Crear y confirmar pedido</button>
+        <button class="tab-button" data-tab="tab-rf3" type="button">RF3 - Verificar disponibilidad de stock</button>
+        <button class="tab-button" data-tab="tab-rf4" type="button">RF4 - Confirmar recepcion orden de compra</button>
+        <button class="tab-button" data-tab="tab-rf5" type="button">RF5 - Programar y confirmar entrega</button>
+        <button class="tab-button" data-tab="tab-consultas" type="button">Consultas</button>
+    </nav>
+
+    <section id="tab-rf1" class="tab-panel active">
+        <div class="card">
+            <h2>RF1 - Autorizar vendedor</h2>
+            <form method="post" action="{{ url_for('autorizar_vendedor') }}">
+                <label>ID vendedor</label>
+                <input name="vendedor_id" type="number" required>
+                <label>ID empleado RRHH autorizador</label>
+                <input name="autorizado_por" type="number" required>
+                <button type="submit">Autorizar</button>
+            </form>
+        </div>
+    </section>
+
+    <section id="tab-rf2" class="tab-panel">
+        <div class="card">
+            <h2>RF2 - Crear y confirmar pedido</h2>
+            <form method="post" action="{{ url_for('crear_pedido') }}">
+                <label>ID cliente</label>
+                <input name="cliente_id" type="number" required>
+                <label>ID vendedor</label>
+                <input name="vendedor_id" type="number" required>
+                <label>Items (uno por linea en formato producto_id:cantidad)</label>
+                <textarea name="items" rows="5" placeholder="1:2&#10;2:1" required></textarea>
+                <button type="submit">Crear pedido</button>
+            </form>
+        </div>
+    </section>
+
+    <section id="tab-rf3" class="tab-panel">
+        <div class="card">
+            <h2>RF3 - Verificar disponibilidad de stock</h2>
+            <form method="post" action="{{ url_for('verificar_stock') }}">
+                <label>ID producto</label>
+                <input name="producto_id" type="number" required>
+                <label>Cantidad</label>
+                <input name="cantidad" type="number" min="1" required>
+                <button type="submit">Verificar</button>
+            </form>
+        </div>
+    </section>
+
+    <section id="tab-rf4" class="tab-panel">
+        <div class="card">
+            <h2>RF4 - Confirmar recepcion orden de compra</h2>
+            <form method="post" action="{{ url_for('recibir_orden') }}">
+                <label>ID orden de compra</label>
+                <input name="orden_id" type="number" required>
+                <button type="submit">Recibir orden</button>
+            </form>
+        </div>
+    </section>
+
+    <section id="tab-rf5" class="tab-panel">
+        <div class="split">
+            <div class="card">
+                <h2>RF5 - Programar entrega</h2>
+                <form method="post" action="{{ url_for('programar_entrega') }}">
+                    <label>ID pedido confirmado</label>
+                    <input name="pedido_id" type="number" required>
+                    <label>ID repartidor</label>
+                    <input name="repartidor_id" type="number" required>
+                    <label>Fecha programada (YYYY-MM-DD)</label>
+                    <input name="fecha_programada" type="text" required>
+                    <button type="submit">Programar</button>
+                </form>
+            </div>
+
+            <div class="card">
+                <h2>RF5 - Confirmar entrega</h2>
+                <form method="post" action="{{ url_for('confirmar_entrega') }}">
+                    <label>ID entrega</label>
+                    <input name="entrega_id" type="number" required>
+                    <button type="submit">Confirmar entrega</button>
+                </form>
+            </div>
+        </div>
+    </section>
+
+    <section id="tab-consultas" class="tab-panel">
+        <div class="card">
+            <h2>Vendedores</h2>
+            <table>
+                <tr><th>ID</th><th>Nombre</th><th>Codigo</th><th>Zona</th><th>Autorizado</th></tr>
+                {% for vendedor in vendedores %}
+                <tr>
+                    <td>{{ vendedor.id }}</td>
+                    <td>{{ vendedor.nombre }}</td>
+                    <td>{{ vendedor.codigo_vendedor }}</td>
+                    <td>{{ vendedor.zona }}</td>
+                    <td>{{ "SI" if vendedor.autorizado == 1 else "NO" }}</td>
+                </tr>
+                {% endfor %}
+            </table>
+        </div>
+
+        <div class="card">
+            <h2>Clientes</h2>
+            <table>
+                <tr><th>ID</th><th>Nombre</th><th>Email</th></tr>
+                {% for cliente in clientes %}
+                <tr>
+                    <td>{{ cliente.id }}</td>
+                    <td>{{ cliente.nombre }}</td>
+                    <td>{{ cliente.email }}</td>
+                </tr>
+                {% endfor %}
+            </table>
+        </div>
+
+        <div class="card">
+            <h2>Productos</h2>
+            <table>
+                <tr><th>ID</th><th>Nombre</th><th>Precio</th><th>Categoria</th></tr>
+                {% for producto in productos %}
+                <tr>
+                    <td>{{ producto.id }}</td>
+                    <td>{{ producto.nombre }}</td>
+                    <td>{{ "%.2f"|format(producto.precio) }}</td>
+                    <td>{{ producto.categoria }}</td>
+                </tr>
+                {% endfor %}
+            </table>
+        </div>
+
+        <div class="card">
+            <h2>Pedidos recientes</h2>
+            <table>
+                <tr><th>ID</th><th>Fecha</th><th>Cliente</th><th>Vendedor</th><th>Estado</th><th>Total</th></tr>
+                {% for pedido in pedidos %}
+                <tr>
+                    <td>{{ pedido.id }}</td>
+                    <td>{{ pedido.fecha }}</td>
+                    <td>{{ pedido.cliente }}</td>
+                    <td>{{ pedido.vendedor }}</td>
+                    <td>{{ pedido.estado }}</td>
+                    <td>{{ "%.2f"|format(pedido.total) }}</td>
+                </tr>
+                {% endfor %}
+            </table>
+        </div>
+
+        <div class="card">
+            <h2>Ordenes de compra pendientes</h2>
+            <table>
+                <tr><th>ID</th><th>Proveedor</th><th>Fecha</th><th>Total</th></tr>
+                {% for orden in ordenes_pendientes %}
+                <tr>
+                    <td>{{ orden.id }}</td>
+                    <td>{{ orden.proveedor }}</td>
+                    <td>{{ orden.fecha }}</td>
+                    <td>{{ "%.2f"|format(orden.total) }}</td>
+                </tr>
+                {% endfor %}
+            </table>
+        </div>
+
+        <div class="card">
+            <h2>Entregas pendientes</h2>
+            <table>
+                <tr><th>ID</th><th>Pedido</th><th>Repartidor</th><th>Fecha programada</th><th>Estado</th></tr>
+                {% for entrega in entregas_pendientes %}
+                <tr>
+                    <td>{{ entrega.id }}</td>
+                    <td>{{ entrega.pedido_id }}</td>
+                    <td>{{ entrega.repartidor_id }}</td>
+                    <td>{{ entrega.fecha_programada }}</td>
+                    <td>{{ entrega.estado }}</td>
+                </tr>
+                {% endfor %}
+            </table>
+        </div>
+    </section>
+
+    <script>
+        const buttons = document.querySelectorAll(".tab-button");
+        const panels = document.querySelectorAll(".tab-panel");
+
+        function activateTab(tabId) {
+            buttons.forEach((button) => {
+                button.classList.toggle("active", button.dataset.tab === tabId);
+            });
+            panels.forEach((panel) => {
+                panel.classList.toggle("active", panel.id === tabId);
+            });
+        }
+
+        buttons.forEach((button) => {
+            button.addEventListener("click", () => activateTab(button.dataset.tab));
+        });
+    </script>
+</body>
+</html>
