@@ -1,4 +1,4 @@
-# PoliMarket - Cliente 1 (Consola Python + SQLite)
+# PoliMarket
 
 ## 1. Contexto
 
@@ -92,8 +92,11 @@ DetalleEntrega --> MovimientoStock
 | RF5 - Programar y confirmar entrega | `ComponenteEntregas.programarEntrega` + `confirmarEntrega`, incluyendo salidas de bodega y cierre del pedido |
 
 ---
+## 6 Clientes
+ - Cliente 1  (Consola - Python)
+ - Cliente 2 (Aplicación Web - Flask - Python)
 
-## 6. Estructura final por carpetas
+## 6.1. Estructura final por carpetas (Clientes y compartida)
 
 La solucion quedo separada por interfaz y con logica compartida:
 
@@ -121,7 +124,7 @@ La base de datos SQLite compartida por ambas aplicaciones:
 
 ---
 
-## 7. Ejecucion independiente de cada cliente
+## 7 Ejecucion independiente de cada cliente
 
 Instalar dependencias:
 
