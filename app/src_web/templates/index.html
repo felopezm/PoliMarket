@@ -5,29 +5,42 @@
     <title>PoliMarket - Cliente Web (Flask)</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 24px; background: #f5f7fb; }
-        h1, h2 { margin-bottom: 8px; }
-        .card { border: 1px solid #d8deea; background: #fff; padding: 12px; margin-bottom: 16px; border-radius: 8px; }
-        label { display: block; margin-top: 8px; font-weight: bold; }
-        input, textarea, button { width: 100%; padding: 8px; margin-top: 4px; box-sizing: border-box; }
-        button { width: auto; cursor: pointer; border: 1px solid #2d5be3; background: #2d5be3; color: #fff; border-radius: 6px; }
-        table { border-collapse: collapse; width: 100%; margin-top: 8px; }
-        th, td { border: 1px solid #ddd; padding: 6px; text-align: left; }
-        .flash { padding: 10px; border-radius: 4px; margin-bottom: 8px; }
-        .success { background: #e6ffed; border: 1px solid #8fd19e; }
-        .warning { background: #fff4e5; border: 1px solid #f3c57a; }
-        .info { background: #e9f3ff; border: 1px solid #8bb9f2; }
-        .tab-menu { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 16px; }
-        .tab-button { background: #eef2ff; color: #1c2e7a; border: 1px solid #c8d4ff; }
+        h1, h2, h3 { margin-bottom: 8px; }
+        .card { border: 1px solid #d8deea; background: #fff; padding: 16px; margin-bottom: 16px; border-radius: 8px; }
+        label { display: block; margin-top: 10px; font-weight: bold; font-size: 0.9em; color: #333; }
+        input[type=number], input[type=text], input[type=date], select {
+            width: 100%; padding: 8px; margin-top: 4px; box-sizing: border-box;
+            border: 1px solid #c0c9e0; border-radius: 4px; font-size: 0.95em;
+        }
+        select:focus, input:focus { outline: none; border-color: #2d5be3; }
+        .btn { cursor: pointer; padding: 8px 16px; border-radius: 6px; font-size: 0.95em; border: none; }
+        .btn-primary { background: #2d5be3; color: #fff; }
+        .btn-secondary { background: #eef2ff; color: #1c2e7a; border: 1px solid #c8d4ff; }
+        .btn-danger-sm { background: #f28b8b; color: #fff; padding: 4px 10px; font-size: 0.85em; }
+        .form-actions { margin-top: 14px; display: flex; gap: 8px; align-items: center; }
+        table { border-collapse: collapse; width: 100%; margin-top: 8px; font-size: 0.9em; }
+        th { background: #eef2ff; color: #1c2e7a; }
+        th, td { border: 1px solid #ddd; padding: 7px 10px; text-align: left; }
+        tr:nth-child(even) td { background: #f9fafd; }
+        .flash { padding: 10px 14px; border-radius: 4px; margin-bottom: 8px; font-size: 0.95em; }
+        .success { background: #e6ffed; border: 1px solid #8fd19e; color: #1a5c2c; }
+        .warning { background: #fff4e5; border: 1px solid #f3c57a; color: #7a4d00; }
+        .info    { background: #e9f3ff; border: 1px solid #8bb9f2; color: #1a3e7a; }
+        .danger  { background: #ffe9e9; border: 1px solid #f28b8b; color: #7a1a1a; font-weight: bold; }
+        .tab-menu { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 18px; }
+        .tab-button { background: #eef2ff; color: #1c2e7a; border: 1px solid #c8d4ff; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 0.9em; }
         .tab-button.active { background: #2d5be3; border-color: #2d5be3; color: #fff; }
         .tab-panel { display: none; }
         .tab-panel.active { display: block; }
         .split { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
         @media (max-width: 900px) { .split { grid-template-columns: 1fr; } }
+        .item-row { display: grid; grid-template-columns: 1fr 110px 40px; gap: 8px; align-items: center; margin-top: 6px; }
+        .item-row select, .item-row input { margin-top: 0; }
+        .stock-badge { display: inline-block; font-size: 0.78em; background: #eef2ff; color: #1c2e7a; border-radius: 4px; padding: 1px 6px; margin-left: 6px; }
     </style>
 </head>
 <body>
     <h1>PoliMarket - Cliente Web (Flask)</h1>
-    <p>Menu por requerimiento funcional (RF) y pestaña separada para consultas.</p>
 
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
@@ -38,203 +51,328 @@
     {% endwith %}
 
     <nav class="tab-menu">
-        <button class="tab-button active" data-tab="tab-rf1" type="button">RF1 - Autorizar vendedor</button>
-        <button class="tab-button" data-tab="tab-rf2" type="button">RF2 - Crear y confirmar pedido</button>
-        <button class="tab-button" data-tab="tab-rf3" type="button">RF3 - Verificar disponibilidad de stock</button>
-        <button class="tab-button" data-tab="tab-rf4" type="button">RF4 - Confirmar recepcion orden de compra</button>
-        <button class="tab-button" data-tab="tab-rf5" type="button">RF5 - Programar y confirmar entrega</button>
-        <button class="tab-button" data-tab="tab-consultas" type="button">Consultas</button>
+        <button class="tab-button" data-tab="tab-rf1" type="button">RF1 · Autorizar vendedor</button>
+        <button class="tab-button" data-tab="tab-rf2" type="button">RF2 · Crear pedido</button>
+        <button class="tab-button" data-tab="tab-rf3" type="button">RF3 · Verificar stock</button>
+        <button class="tab-button" data-tab="tab-rf4" type="button">RF4 · Recibir orden compra</button>
+        <button class="tab-button" data-tab="tab-rf5" type="button">RF5 · Entregas</button>
+        <button class="tab-button" data-tab="tab-consultas" type="button" id="btn-consultas">📋 Consultas</button>
     </nav>
 
-    <section id="tab-rf1" class="tab-panel active">
+    <!-- RF1 -->
+    <section id="tab-rf1" class="tab-panel">
         <div class="card">
-            <h2>RF1 - Autorizar vendedor</h2>
+            <h2>RF1 — Autorizar vendedor de campo</h2>
+            <p style="color:#555;font-size:.9em">Registra la autorización de RRHH para que un vendedor pueda operar.</p>
             <form method="post" action="{{ url_for('autorizar_vendedor') }}">
-                <label>ID vendedor</label>
-                <input name="vendedor_id" type="number" required>
-                <label>ID empleado RRHH autorizador</label>
-                <input name="autorizado_por" type="number" required>
-                <button type="submit">Autorizar</button>
+                <input type="hidden" name="active_tab" value="tab-rf1">
+                <label>Vendedor a autorizar</label>
+                <select name="vendedor_id" required>
+                    <option value="">— Seleccione vendedor —</option>
+                    {% for v in vendedores %}
+                    <option value="{{ v.id }}">{{ v.nombre }} · {{ v.codigo_vendedor }} · Zona {{ v.zona }}
+                        {% if v.autorizado == 1 %} ✔ ya autorizado{% endif %}
+                    </option>
+                    {% endfor %}
+                </select>
+                <label>Autorizado por (empleado RRHH)</label>
+                <select name="autorizado_por" required>
+                    <option value="">— Seleccione empleado RRHH —</option>
+                    {% for e in empleados_rrhh %}
+                    <option value="{{ e.id }}">{{ e.nombre }} · {{ e.cargo }}</option>
+                    {% endfor %}
+                </select>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">Autorizar vendedor</button>
+                </div>
             </form>
         </div>
     </section>
 
+    <!-- RF2 -->
     <section id="tab-rf2" class="tab-panel">
         <div class="card">
-            <h2>RF2 - Crear y confirmar pedido</h2>
-            <form method="post" action="{{ url_for('crear_pedido') }}">
-                <label>ID cliente</label>
-                <input name="cliente_id" type="number" required>
-                <label>ID vendedor</label>
-                <input name="vendedor_id" type="number" required>
-                <label>Items (uno por linea en formato producto_id:cantidad)</label>
-                <textarea name="items" rows="5" placeholder="1:2&#10;2:1" required></textarea>
-                <button type="submit">Crear pedido</button>
+            <h2>RF2 — Crear y confirmar pedido</h2>
+            <p style="color:#555;font-size:.9em">Al confirmar, el stock se reduce automáticamente y se generan órdenes de compra si hay productos por debajo del mínimo.</p>
+            <form method="post" action="{{ url_for('crear_pedido') }}" id="rf2-form">
+                <input type="hidden" name="active_tab" value="tab-rf2">
+                <div class="split">
+                    <div>
+                        <label>Cliente</label>
+                        <select name="cliente_id" required>
+                            <option value="">— Seleccione cliente —</option>
+                            {% for c in clientes %}
+                            <option value="{{ c.id }}">{{ c.nombre }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label>Vendedor</label>
+                        <select name="vendedor_id" required>
+                            <option value="">— Seleccione vendedor —</option>
+                            {% for v in vendedores %}
+                            <option value="{{ v.id }}">{{ v.nombre }}
+                                {% if v.autorizado != 1 %} ⚠ sin autorizar{% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <label>Productos del pedido</label>
+                <div id="rf2-items">
+                    <div class="item-row">
+                        <select name="item_producto" required>
+                            {% for p in productos %}
+                            <option value="{{ p.id }}">{{ p.nombre }} · ${{ "%.2f"|format(p.precio) }} · Stock: {{ stock_actual.get(p.id, 0) }}</option>
+                            {% endfor %}
+                        </select>
+                        <input name="item_cantidad" type="number" min="1" value="1" required placeholder="Cant.">
+                        <button type="button" class="btn btn-danger-sm" onclick="removeRow(this)">✕</button>
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="addProductRow()">+ Agregar producto</button>
+                    <button type="submit" class="btn btn-primary">Crear pedido</button>
+                </div>
             </form>
         </div>
     </section>
 
+    <!-- RF3 -->
     <section id="tab-rf3" class="tab-panel">
         <div class="card">
-            <h2>RF3 - Verificar disponibilidad de stock</h2>
+            <h2>RF3 — Verificar disponibilidad de stock</h2>
+            <p style="color:#555;font-size:.9em">Consulta si hay suficiente stock. Si el stock está bajo el mínimo, se genera una orden de compra automáticamente.</p>
             <form method="post" action="{{ url_for('verificar_stock') }}">
-                <label>ID producto</label>
-                <input name="producto_id" type="number" required>
-                <label>Cantidad</label>
-                <input name="cantidad" type="number" min="1" required>
-                <button type="submit">Verificar</button>
+                <input type="hidden" name="active_tab" value="tab-rf3">
+                <label>Producto</label>
+                <select name="producto_id" required>
+                    <option value="">— Seleccione producto —</option>
+                    {% for p in productos %}
+                    <option value="{{ p.id }}">{{ p.nombre }} · Stock actual: {{ stock_actual.get(p.id, 0) }}</option>
+                    {% endfor %}
+                </select>
+                <label>Cantidad a verificar</label>
+                <input name="cantidad" type="number" min="1" value="1" required>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">Verificar disponibilidad</button>
+                </div>
             </form>
         </div>
     </section>
 
+    <!-- RF4 -->
     <section id="tab-rf4" class="tab-panel">
         <div class="card">
-            <h2>RF4 - Confirmar recepcion orden de compra</h2>
+            <h2>RF4 — Recibir orden de compra</h2>
+            <p style="color:#555;font-size:.9em">Confirma la recepción de una orden de compra pendiente y repone el stock.</p>
             <form method="post" action="{{ url_for('recibir_orden') }}">
-                <label>ID orden de compra</label>
-                <input name="orden_id" type="number" required>
-                <button type="submit">Recibir orden</button>
+                <input type="hidden" name="active_tab" value="tab-rf4">
+                <label>Orden de compra pendiente</label>
+                <select name="orden_id" required>
+                    <option value="">— Seleccione orden —</option>
+                    {% for o in ordenes_pendientes %}
+                    <option value="{{ o.id }}">#{{ o.id }} · {{ o.proveedor }} · ${{ "%.2f"|format(o.total) }} · {{ o.fecha[:10] }}</option>
+                    {% endfor %}
+                </select>
+                {% if not ordenes_pendientes %}
+                <p style="color:#888;font-size:.9em;margin-top:8px">No hay órdenes de compra pendientes.</p>
+                {% endif %}
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary" {% if not ordenes_pendientes %}disabled{% endif %}>Recibir orden</button>
+                </div>
             </form>
         </div>
     </section>
 
+    <!-- RF5 -->
     <section id="tab-rf5" class="tab-panel">
         <div class="split">
             <div class="card">
-                <h2>RF5 - Programar entrega</h2>
+                <h2>RF5 — Programar entrega</h2>
+                <p style="color:#555;font-size:.9em">Asigna un repartidor y fecha a un pedido confirmado.</p>
                 <form method="post" action="{{ url_for('programar_entrega') }}">
-                    <label>ID pedido confirmado</label>
-                    <input name="pedido_id" type="number" required>
-                    <label>ID repartidor</label>
-                    <input name="repartidor_id" type="number" required>
-                    <label>Fecha programada (YYYY-MM-DD)</label>
-                    <input name="fecha_programada" type="text" required>
-                    <button type="submit">Programar</button>
+                    <input type="hidden" name="active_tab" value="tab-rf5">
+                    <label>Pedido confirmado</label>
+                    <select name="pedido_id" required>
+                        <option value="">— Seleccione pedido —</option>
+                        {% for p in pedidos_confirmados %}
+                        <option value="{{ p.id }}">#{{ p.id }} · {{ p.cliente }} · ${{ "%.2f"|format(p.total) }}</option>
+                        {% endfor %}
+                    </select>
+                    {% if not pedidos_confirmados %}
+                    <p style="color:#888;font-size:.9em;margin-top:8px">No hay pedidos confirmados.</p>
+                    {% endif %}
+                    <label>Repartidor</label>
+                    <select name="repartidor_id" required>
+                        <option value="">— Seleccione repartidor —</option>
+                        {% for r in repartidores %}
+                        <option value="{{ r.id }}">{{ r.nombre }}</option>
+                        {% endfor %}
+                    </select>
+                    <label>Fecha programada</label>
+                    <input name="fecha_programada" type="date" required>
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary" {% if not pedidos_confirmados %}disabled{% endif %}>Programar entrega</button>
+                    </div>
                 </form>
             </div>
 
             <div class="card">
-                <h2>RF5 - Confirmar entrega</h2>
+                <h2>RF5 — Confirmar entrega</h2>
+                <p style="color:#555;font-size:.9em">Registra que el cliente recibió el pedido.</p>
                 <form method="post" action="{{ url_for('confirmar_entrega') }}">
-                    <label>ID entrega</label>
-                    <input name="entrega_id" type="number" required>
-                    <button type="submit">Confirmar entrega</button>
+                    <input type="hidden" name="active_tab" value="tab-rf5">
+                    <label>Entrega pendiente</label>
+                    <select name="entrega_id" required>
+                        <option value="">— Seleccione entrega —</option>
+                        {% for e in entregas_pendientes %}
+                        <option value="{{ e.id }}">#{{ e.id }} · Pedido #{{ e.pedido_id }} · {{ e.fecha_programada }}</option>
+                        {% endfor %}
+                    </select>
+                    {% if not entregas_pendientes %}
+                    <p style="color:#888;font-size:.9em;margin-top:8px">No hay entregas pendientes.</p>
+                    {% endif %}
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary" {% if not entregas_pendientes %}disabled{% endif %}>Confirmar entrega</button>
+                    </div>
                 </form>
             </div>
         </div>
     </section>
 
+    <!-- CONSULTAS -->
     <section id="tab-consultas" class="tab-panel">
+        <div class="split">
+            <div class="card">
+                <h3>Vendedores activos</h3>
+                <table>
+                    <tr><th>ID</th><th>Nombre</th><th>Codigo</th><th>Zona</th><th>Autorizado</th></tr>
+                    {% for v in vendedores %}
+                    <tr>
+                        <td>{{ v.id }}</td><td>{{ v.nombre }}</td><td>{{ v.codigo_vendedor }}</td>
+                        <td>{{ v.zona }}</td>
+                        <td style="color:{{ '#1a5c2c' if v.autorizado == 1 else '#7a1a1a' }}">{{ "✔ SI" if v.autorizado == 1 else "✗ NO" }}</td>
+                    </tr>
+                    {% endfor %}
+                </table>
+            </div>
+            <div class="card">
+                <h3>Clientes</h3>
+                <table>
+                    <tr><th>ID</th><th>Nombre</th><th>Email</th></tr>
+                    {% for c in clientes %}
+                    <tr><td>{{ c.id }}</td><td>{{ c.nombre }}</td><td>{{ c.email }}</td></tr>
+                    {% endfor %}
+                </table>
+            </div>
+        </div>
+
         <div class="card">
-            <h2>Vendedores</h2>
+            <h3>Productos y stock actual</h3>
             <table>
-                <tr><th>ID</th><th>Nombre</th><th>Codigo</th><th>Zona</th><th>Autorizado</th></tr>
-                {% for vendedor in vendedores %}
+                <tr><th>ID</th><th>Nombre</th><th>Precio</th><th>Categoría</th><th>Stock actual</th></tr>
+                {% for p in productos %}
                 <tr>
-                    <td>{{ vendedor.id }}</td>
-                    <td>{{ vendedor.nombre }}</td>
-                    <td>{{ vendedor.codigo_vendedor }}</td>
-                    <td>{{ vendedor.zona }}</td>
-                    <td>{{ "SI" if vendedor.autorizado == 1 else "NO" }}</td>
+                    <td>{{ p.id }}</td><td>{{ p.nombre }}</td>
+                    <td>${{ "%.2f"|format(p.precio) }}</td><td>{{ p.categoria }}</td>
+                    <td>{{ stock_actual.get(p.id, 0) }}</td>
                 </tr>
                 {% endfor %}
             </table>
         </div>
 
         <div class="card">
-            <h2>Clientes</h2>
-            <table>
-                <tr><th>ID</th><th>Nombre</th><th>Email</th></tr>
-                {% for cliente in clientes %}
-                <tr>
-                    <td>{{ cliente.id }}</td>
-                    <td>{{ cliente.nombre }}</td>
-                    <td>{{ cliente.email }}</td>
-                </tr>
-                {% endfor %}
-            </table>
-        </div>
-
-        <div class="card">
-            <h2>Productos</h2>
-            <table>
-                <tr><th>ID</th><th>Nombre</th><th>Precio</th><th>Categoria</th></tr>
-                {% for producto in productos %}
-                <tr>
-                    <td>{{ producto.id }}</td>
-                    <td>{{ producto.nombre }}</td>
-                    <td>{{ "%.2f"|format(producto.precio) }}</td>
-                    <td>{{ producto.categoria }}</td>
-                </tr>
-                {% endfor %}
-            </table>
-        </div>
-
-        <div class="card">
-            <h2>Pedidos recientes</h2>
+            <h3>Pedidos recientes (últimos 30)</h3>
             <table>
                 <tr><th>ID</th><th>Fecha</th><th>Cliente</th><th>Vendedor</th><th>Estado</th><th>Total</th></tr>
-                {% for pedido in pedidos %}
+                {% for p in pedidos %}
                 <tr>
-                    <td>{{ pedido.id }}</td>
-                    <td>{{ pedido.fecha }}</td>
-                    <td>{{ pedido.cliente }}</td>
-                    <td>{{ pedido.vendedor }}</td>
-                    <td>{{ pedido.estado }}</td>
-                    <td>{{ "%.2f"|format(pedido.total) }}</td>
+                    <td>{{ p.id }}</td><td>{{ p.fecha[:16] }}</td><td>{{ p.cliente }}</td>
+                    <td>{{ p.vendedor }}</td><td>{{ p.estado }}</td>
+                    <td>${{ "%.2f"|format(p.total) }}</td>
                 </tr>
                 {% endfor %}
             </table>
         </div>
 
-        <div class="card">
-            <h2>Ordenes de compra pendientes</h2>
-            <table>
-                <tr><th>ID</th><th>Proveedor</th><th>Fecha</th><th>Total</th></tr>
-                {% for orden in ordenes_pendientes %}
-                <tr>
-                    <td>{{ orden.id }}</td>
-                    <td>{{ orden.proveedor }}</td>
-                    <td>{{ orden.fecha }}</td>
-                    <td>{{ "%.2f"|format(orden.total) }}</td>
-                </tr>
-                {% endfor %}
-            </table>
-        </div>
-
-        <div class="card">
-            <h2>Entregas pendientes</h2>
-            <table>
-                <tr><th>ID</th><th>Pedido</th><th>Repartidor</th><th>Fecha programada</th><th>Estado</th></tr>
-                {% for entrega in entregas_pendientes %}
-                <tr>
-                    <td>{{ entrega.id }}</td>
-                    <td>{{ entrega.pedido_id }}</td>
-                    <td>{{ entrega.repartidor_id }}</td>
-                    <td>{{ entrega.fecha_programada }}</td>
-                    <td>{{ entrega.estado }}</td>
-                </tr>
-                {% endfor %}
-            </table>
+        <div class="split">
+            <div class="card">
+                <h3>Órdenes de compra pendientes</h3>
+                <table>
+                    <tr><th>ID</th><th>Proveedor</th><th>Fecha</th><th>Total</th></tr>
+                    {% for o in ordenes_pendientes %}
+                    <tr>
+                        <td>{{ o.id }}</td><td>{{ o.proveedor }}</td>
+                        <td>{{ o.fecha[:10] }}</td><td>${{ "%.2f"|format(o.total) }}</td>
+                    </tr>
+                    {% endfor %}
+                    {% if not ordenes_pendientes %}<tr><td colspan="4" style="color:#888">Sin órdenes pendientes</td></tr>{% endif %}
+                </table>
+            </div>
+            <div class="card">
+                <h3>Entregas pendientes</h3>
+                <table>
+                    <tr><th>ID</th><th>Pedido</th><th>Repartidor ID</th><th>Fecha prog.</th><th>Estado</th></tr>
+                    {% for e in entregas_pendientes %}
+                    <tr>
+                        <td>{{ e.id }}</td><td>#{{ e.pedido_id }}</td>
+                        <td>{{ e.repartidor_id }}</td><td>{{ e.fecha_programada }}</td>
+                        <td>{{ e.estado }}</td>
+                    </tr>
+                    {% endfor %}
+                    {% if not entregas_pendientes %}<tr><td colspan="5" style="color:#888">Sin entregas pendientes</td></tr>{% endif %}
+                </table>
+            </div>
         </div>
     </section>
 
     <script>
-        const buttons = document.querySelectorAll(".tab-button");
-        const panels = document.querySelectorAll(".tab-panel");
+        // ── Tab management ──────────────────────────────────────────
+        const buttons = document.querySelectorAll(".tab-button:not(#btn-consultas)");
+        const panels  = document.querySelectorAll(".tab-panel");
 
         function activateTab(tabId) {
-            buttons.forEach((button) => {
-                button.classList.toggle("active", button.dataset.tab === tabId);
-            });
-            panels.forEach((panel) => {
-                panel.classList.toggle("active", panel.id === tabId);
-            });
+            buttons.forEach(b => b.classList.toggle("active", b.dataset.tab === tabId));
+            document.getElementById("btn-consultas").classList.toggle("active", tabId === "tab-consultas");
+            panels.forEach(p => p.classList.toggle("active", p.id === tabId));
         }
 
-        buttons.forEach((button) => {
-            button.addEventListener("click", () => activateTab(button.dataset.tab));
+        buttons.forEach(b => b.addEventListener("click", () => activateTab(b.dataset.tab)));
+
+        // Consultas tab: full page reload to get fresh data
+        document.getElementById("btn-consultas").addEventListener("click", () => {
+            window.location.href = "/?tab=tab-consultas";
         });
+
+        // Activate the tab from the URL param (preserved after form submit)
+        const activeTab = new URLSearchParams(window.location.search).get("tab") || "tab-rf1";
+        activateTab(activeTab);
+
+        // ── RF2 dynamic product rows ────────────────────────────────
+        const productOptions = `{% for p in productos %}<option value="{{ p.id }}">{{ p.nombre }} · ${{ "%.2f"|format(p.precio) }} · Stock: {{ stock_actual.get(p.id, 0) }}</option>{% endfor %}`;
+
+        function buildItemRow() {
+            const row = document.createElement("div");
+            row.className = "item-row";
+            row.innerHTML = `
+                <select name="item_producto" required>${productOptions}</select>
+                <input name="item_cantidad" type="number" min="1" value="1" required placeholder="Cant.">
+                <button type="button" class="btn btn-danger-sm" onclick="removeRow(this)">✕</button>
+            `;
+            return row;
+        }
+
+        function addProductRow() {
+            document.getElementById("rf2-items").appendChild(buildItemRow());
+        }
+
+        function removeRow(btn) {
+            const container = document.getElementById("rf2-items");
+            if (container.children.length > 1) {
+                btn.closest(".item-row").remove();
+            }
+        }
     </script>
 </body>
 </html>

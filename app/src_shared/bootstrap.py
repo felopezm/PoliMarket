@@ -48,6 +48,7 @@ def crear_servicios(db_path: Path) -> PoliMarketServicios:
         componentes_rrhh,
         componentes_stock,
         componentes_catalogo,
+        componentes_movimientos,
     )
     componentes_entregas = ComponenteEntregas(db, componentes_movimientos)
     componentes_logistica = ComponenteLogistica(db, componentes_entregas)

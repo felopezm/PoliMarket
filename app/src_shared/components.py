@@ -5,6 +5,7 @@ from typing import List, Sequence
 
 from .common import now_iso
 from .database import Database
+from .exceptions import EntidadNoEncontrada, ReglaDeNegocio, VendedorNoAutorizado
 
 
 class ComponenteEmpleados:
@@ -31,6 +32,8 @@ class ComponenteEmpleados:
         return int(cursor.lastrowid)
 
     def actualizarEmpleado(self, employee_id: int, datos: dict) -> None:
+        if self.getEmpleado(employee_id) is None:
+            raise EntidadNoEncontrada(f"Empleado con ID={employee_id} no encontrado.")
         self.db.conn.execute(
             """
             UPDATE employees
@@ -66,7 +69,18 @@ class ComponenteRRHH:
             (vendedor_id,),
         ).fetchone()
         if seller is None:
-            raise ValueError("El vendedor no existe o no esta activo.")
+            raise EntidadNoEncontrada(
+                f"Vendedor con ID={vendedor_id} no encontrado o no esta activo."
+            )
+
+        autorizador = self.db.conn.execute(
+            "SELECT id FROM employees WHERE id = ? AND estado = 'activo'",
+            (autorizado_por,),
+        ).fetchone()
+        if autorizador is None:
+            raise EntidadNoEncontrada(
+                f"Empleado autorizador con ID={autorizado_por} no encontrado o no esta activo."
+            )
 
         existing = self.db.conn.execute(
             "SELECT id FROM seller_authorizations WHERE seller_id = ?",
@@ -92,6 +106,14 @@ class ComponenteRRHH:
         self.db.conn.commit()
 
     def revocarAutorizacion(self, vendedor_id: int) -> None:
+        auth = self.db.conn.execute(
+            "SELECT id FROM seller_authorizations WHERE seller_id = ?",
+            (vendedor_id,),
+        ).fetchone()
+        if auth is None:
+            raise EntidadNoEncontrada(
+                f"No existe autorizacion registrada para el vendedor con ID={vendedor_id}."
+            )
         self.db.conn.execute(
             "UPDATE seller_authorizations SET activa = 0 WHERE seller_id = ?",
             (vendedor_id,),
@@ -151,7 +173,7 @@ class ComponenteCatalogo:
     def getPrecio(self, producto_id: int) -> float:
         product = self.getProducto(producto_id)
         if product is None:
-            raise ValueError("Producto no encontrado.")
+            raise EntidadNoEncontrada(f"Producto con ID={producto_id} no encontrado.")
         return float(product["precio"])
 
 
@@ -177,6 +199,8 @@ class ComponenteClientes:
         return list(self.db.conn.execute("SELECT * FROM clients ORDER BY id"))
 
     def getHistorialCompras(self, cliente_id: int) -> List[sqlite3.Row]:
+        if self.getCliente(cliente_id) is None:
+            raise EntidadNoEncontrada(f"Cliente con ID={cliente_id} no encontrado.")
         return list(
             self.db.conn.execute(
                 """
@@ -195,6 +219,11 @@ class ComponenteOrdenesCompra:
         self.db = db
 
     def emitirOrdenCompra(self, proveedor_id: int, items: Sequence[tuple[int, int, float]]) -> int:
+        proveedor = self.db.conn.execute(
+            "SELECT id FROM providers WHERE id = ?", (proveedor_id,)
+        ).fetchone()
+        if proveedor is None:
+            raise EntidadNoEncontrada(f"Proveedor con ID={proveedor_id} no encontrado.")
         total = sum(cantidad * precio for _, cantidad, precio in items)
         cursor = self.db.conn.execute(
             """
@@ -233,7 +262,9 @@ class ComponenteOrdenesCompra:
             (producto_id,),
         ).fetchone()
         if product is None:
-            raise ValueError("Producto no encontrado para generar orden de compra.")
+            raise EntidadNoEncontrada(
+                f"Producto con ID={producto_id} no encontrado para generar orden de compra."
+            )
 
         return self.emitirOrdenCompra(
             int(product["default_provider_id"]),
@@ -241,6 +272,15 @@ class ComponenteOrdenesCompra:
         )
 
     def confirmarRecepcion(self, orden_id: int) -> None:
+        orden = self.db.conn.execute(
+            "SELECT id, estado FROM purchase_orders WHERE id = ?", (orden_id,)
+        ).fetchone()
+        if orden is None:
+            raise EntidadNoEncontrada(f"Orden de compra con ID={orden_id} no encontrada.")
+        if orden["estado"] != "pendiente":
+            raise ReglaDeNegocio(
+                f"La orden #{orden_id} no esta en estado pendiente (estado actual: {orden['estado']})."
+            )
         self.db.conn.execute(
             "UPDATE purchase_orders SET estado = 'recibida' WHERE id = ?",
             (orden_id,),
@@ -275,7 +315,9 @@ class ComponenteStock:
             (producto_id,),
         ).fetchone()
         if stock is None:
-            raise ValueError("No existe stock para el producto solicitado.")
+            raise EntidadNoEncontrada(
+                f"No existe registro de stock para el producto con ID={producto_id}."
+            )
 
         if stock["cantidad_disponible"] < stock["cantidad_minima"]:
             sugerida = max((stock["cantidad_minima"] * 2) - stock["cantidad_disponible"], stock["cantidad_minima"])
@@ -289,9 +331,14 @@ class ComponenteStock:
             (producto_id,),
         ).fetchone()
         if stock is None:
-            raise ValueError("No existe stock para el producto solicitado.")
+            raise EntidadNoEncontrada(
+                f"No existe registro de stock para el producto con ID={producto_id}."
+            )
         if stock["cantidad_disponible"] < cantidad:
-            raise ValueError("Stock insuficiente para la operacion.")
+            raise ReglaDeNegocio(
+                f"Stock insuficiente para el producto ID={producto_id}. "
+                f"Disponible: {stock['cantidad_disponible']}, solicitado: {cantidad}."
+            )
 
         nuevo_stock = int(stock["cantidad_disponible"]) - cantidad
         self.db.conn.execute(
@@ -302,6 +349,13 @@ class ComponenteStock:
         self.verificarDisponibilidad(producto_id, 0)
 
     def reponerStock(self, producto_id: int, cantidad: int) -> None:
+        stock = self.db.conn.execute(
+            "SELECT id FROM stock WHERE product_id = ?", (producto_id,)
+        ).fetchone()
+        if stock is None:
+            raise EntidadNoEncontrada(
+                f"No existe registro de stock para el producto con ID={producto_id}."
+            )
         self.db.conn.execute(
             "UPDATE stock SET cantidad_disponible = cantidad_disponible + ? WHERE product_id = ?",
             (cantidad, producto_id),
@@ -314,7 +368,9 @@ class ComponenteStock:
             (producto_id,),
         ).fetchone()
         if row is None:
-            raise ValueError("Producto sin registro de stock.")
+            raise EntidadNoEncontrada(
+                f"No existe registro de stock para el producto con ID={producto_id}."
+            )
         return int(row["cantidad_disponible"])
 
 
@@ -371,15 +427,37 @@ class ComponenteVentas:
         componente_rrhh: ComponenteRRHH,
         componente_stock: ComponenteStock,
         componente_catalogo: ComponenteCatalogo,
+        componente_movimientos: "ComponenteMovimientos",
     ) -> None:
         self.db = db
         self.componente_rrhh = componente_rrhh
         self.componente_stock = componente_stock
         self.componente_catalogo = componente_catalogo
+        self.componente_movimientos = componente_movimientos
 
     def crearPedido(self, cliente_id: int, vendedor_id: int, items: Sequence[tuple[int, int]]) -> tuple[int, str]:
+        # Validar que el cliente exista
+        cliente = self.db.conn.execute(
+            "SELECT id FROM clients WHERE id = ?", (cliente_id,)
+        ).fetchone()
+        if cliente is None:
+            raise EntidadNoEncontrada(f"Cliente con ID={cliente_id} no encontrado.")
+
+        # Validar que el vendedor exista y este activo
+        vendedor = self.db.conn.execute(
+            "SELECT id FROM employees WHERE id = ? AND is_seller = 1 AND estado = 'activo'",
+            (vendedor_id,),
+        ).fetchone()
+        if vendedor is None:
+            raise EntidadNoEncontrada(
+                f"Vendedor con ID={vendedor_id} no encontrado o no esta activo."
+            )
+
+        # Validar autorizacion RRHH
         if not self.componente_rrhh.verificarAutorizacion(vendedor_id):
-            raise PermissionError("El vendedor no esta autorizado por RRHH.")
+            raise VendedorNoAutorizado(
+                f"El vendedor con ID={vendedor_id} no tiene autorizacion activa de RRHH."
+            )
 
         disponibilidad_completa = True
         detalles: List[tuple[int, int, float]] = []
@@ -415,6 +493,10 @@ class ComponenteVentas:
         return pedido_id, "pendiente_sin_stock"
 
     def confirmarPedido(self, pedido_id: int) -> bool:
+        pedido = self.db.conn.execute("SELECT id FROM orders WHERE id = ?", (pedido_id,)).fetchone()
+        if pedido is None:
+            raise EntidadNoEncontrada(f"Pedido con ID={pedido_id} no encontrado.")
+
         detalles = list(
             self.db.conn.execute(
                 "SELECT producto_id, cantidad, precio_unitario FROM order_details WHERE pedido_id = ?",
@@ -422,7 +504,7 @@ class ComponenteVentas:
             )
         )
         if len(detalles) == 0:
-            raise ValueError("El pedido no tiene detalles.")
+            raise ReglaDeNegocio(f"El pedido #{pedido_id} no tiene productos asociados.")
 
         for detalle in detalles:
             if not self.componente_stock.verificarDisponibilidad(int(detalle["producto_id"]), int(detalle["cantidad"])):
@@ -433,6 +515,14 @@ class ComponenteVentas:
                 self.db.conn.commit()
                 return False
 
+        # Reducir stock y registrar salida al confirmar el pedido
+        for detalle in detalles:
+            self.componente_movimientos.registrarSalida(
+                int(detalle["producto_id"]),
+                int(detalle["cantidad"]),
+                f"Pedido #{pedido_id} confirmado",
+            )
+
         total = sum(float(d["precio_unitario"]) * int(d["cantidad"]) for d in detalles)
         self.db.conn.execute(
             "UPDATE orders SET estado = 'confirmado', total = ? WHERE id = ?",
@@ -442,10 +532,18 @@ class ComponenteVentas:
         return True
 
     def cancelarPedido(self, pedido_id: int) -> None:
+        pedido = self.db.conn.execute("SELECT id FROM orders WHERE id = ?", (pedido_id,)).fetchone()
+        if pedido is None:
+            raise EntidadNoEncontrada(f"Pedido con ID={pedido_id} no encontrado.")
         self.db.conn.execute("UPDATE orders SET estado = 'cancelado' WHERE id = ?", (pedido_id,))
         self.db.conn.commit()
 
     def listarPedidosPorVendedor(self, vendedor_id: int) -> List[sqlite3.Row]:
+        vendedor = self.db.conn.execute(
+            "SELECT id FROM employees WHERE id = ? AND is_seller = 1", (vendedor_id,)
+        ).fetchone()
+        if vendedor is None:
+            raise EntidadNoEncontrada(f"Vendedor con ID={vendedor_id} no encontrado.")
         return list(
             self.db.conn.execute(
                 """
@@ -457,6 +555,65 @@ class ComponenteVentas:
                 (vendedor_id,),
             )
         )
+
+
+    def crearPedido(self, cliente_id: int, vendedor_id: int, items: Sequence[tuple[int, int]]) -> tuple[int, str]:
+        # Validar que el cliente exista
+        cliente = self.db.conn.execute(
+            "SELECT id FROM clients WHERE id = ?", (cliente_id,)
+        ).fetchone()
+        if cliente is None:
+            raise EntidadNoEncontrada(f"Cliente con ID={cliente_id} no encontrado.")
+
+        # Validar que el vendedor exista y este activo
+        vendedor = self.db.conn.execute(
+            "SELECT id FROM employees WHERE id = ? AND is_seller = 1 AND estado = 'activo'",
+            (vendedor_id,),
+        ).fetchone()
+        if vendedor is None:
+            raise EntidadNoEncontrada(
+                f"Vendedor con ID={vendedor_id} no encontrado o no esta activo."
+            )
+
+        # Validar autorizacion RRHH
+        if not self.componente_rrhh.verificarAutorizacion(vendedor_id):
+            raise VendedorNoAutorizado(
+                f"El vendedor con ID={vendedor_id} no tiene autorizacion activa de RRHH."
+            )
+
+        disponibilidad_completa = True
+        detalles: List[tuple[int, int, float]] = []
+        for producto_id, cantidad in items:
+            precio = self.componente_catalogo.getPrecio(producto_id)
+            detalles.append((producto_id, cantidad, precio))
+            if not self.componente_stock.verificarDisponibilidad(producto_id, cantidad):
+                disponibilidad_completa = False
+
+        estado_inicial = "creado" if disponibilidad_completa else "pendiente_sin_stock"
+        cursor = self.db.conn.execute(
+            """
+            INSERT INTO orders (cliente_id, vendedor_id, fecha, estado, total)
+            VALUES (?, ?, ?, ?, 0)
+            """,
+            (cliente_id, vendedor_id, now_iso(), estado_inicial),
+        )
+        pedido_id = int(cursor.lastrowid)
+
+        for producto_id, cantidad, precio in detalles:
+            self.db.conn.execute(
+                """
+                INSERT INTO order_details (pedido_id, producto_id, cantidad, precio_unitario)
+                VALUES (?, ?, ?, ?)
+                """,
+                (pedido_id, producto_id, cantidad, precio),
+            )
+        self.db.conn.commit()
+
+        if disponibilidad_completa:
+            self.confirmarPedido(pedido_id)
+            return pedido_id, "confirmado"
+        return pedido_id, "pendiente_sin_stock"
+
 
 
 class ComponenteEntregas:
@@ -475,9 +632,20 @@ class ComponenteEntregas:
             (pedido_id,),
         ).fetchone()
         if pedido is None:
-            raise ValueError("Pedido no encontrado.")
+            raise EntidadNoEncontrada(f"Pedido con ID={pedido_id} no encontrado.")
         if pedido["estado"] != "confirmado":
-            raise ValueError("Solo se pueden programar pedidos confirmados.")
+            raise ReglaDeNegocio(
+                f"El pedido #{pedido_id} no esta confirmado (estado actual: {pedido['estado']}). "
+                "Solo se pueden programar pedidos confirmados."
+            )
+
+        repartidor = self.db.conn.execute(
+            "SELECT id FROM employees WHERE id = ? AND estado = 'activo'", (repartidor_id,)
+        ).fetchone()
+        if repartidor is None:
+            raise EntidadNoEncontrada(
+                f"Repartidor con ID={repartidor_id} no encontrado o no esta activo."
+            )
 
         with self.db.conn:
             cursor = self.db.conn.execute(
@@ -489,23 +657,6 @@ class ComponenteEntregas:
             )
             entrega_id = int(cursor.lastrowid)
 
-            detalles = list(
-                self.db.conn.execute(
-                    "SELECT producto_id, cantidad FROM order_details WHERE pedido_id = ?",
-                    (pedido_id,),
-                )
-            )
-            for detalle in detalles:
-                movimiento_id = self.componente_movimientos.registrarSalida(
-                    int(detalle["producto_id"]),
-                    int(detalle["cantidad"]),
-                    f"Entrega #{entrega_id} del pedido #{pedido_id}",
-                )
-                self.db.conn.execute(
-                    "INSERT INTO delivery_details (entrega_id, movimiento_id) VALUES (?, ?)",
-                    (entrega_id, movimiento_id),
-                )
-
             self.db.conn.execute(
                 "UPDATE orders SET estado = 'en_entrega' WHERE id = ?",
                 (pedido_id,),
@@ -514,11 +665,13 @@ class ComponenteEntregas:
 
     def confirmarEntrega(self, entrega_id: int) -> None:
         entrega = self.db.conn.execute(
-            "SELECT pedido_id FROM deliveries WHERE id = ?",
+            "SELECT pedido_id, estado FROM deliveries WHERE id = ?",
             (entrega_id,),
         ).fetchone()
         if entrega is None:
-            raise ValueError("Entrega no encontrada.")
+            raise EntidadNoEncontrada(f"Entrega con ID={entrega_id} no encontrada.")
+        if entrega["estado"] == "entregada":
+            raise ReglaDeNegocio(f"La entrega #{entrega_id} ya fue confirmada anteriormente.")
         with self.db.conn:
             self.db.conn.execute(
                 "UPDATE deliveries SET estado = 'entregada', fecha_real = ? WHERE id = ?",
@@ -532,7 +685,7 @@ class ComponenteEntregas:
     def getEstadoEntrega(self, entrega_id: int) -> str:
         entrega = self.db.conn.execute("SELECT estado FROM deliveries WHERE id = ?", (entrega_id,)).fetchone()
         if entrega is None:
-            raise ValueError("Entrega no encontrada.")
+            raise EntidadNoEncontrada(f"Entrega con ID={entrega_id} no encontrada.")
         return str(entrega["estado"])
 
     def listarEntregasPendientes(self) -> List[sqlite3.Row]:
@@ -554,6 +707,14 @@ class ComponenteLogistica:
         self.componente_entregas = componente_entregas
 
     def asignarRepartidor(self, entrega_id: int, repartidor_id: int) -> None:
+        if self.db.conn.execute("SELECT id FROM deliveries WHERE id = ?", (entrega_id,)).fetchone() is None:
+            raise EntidadNoEncontrada(f"Entrega con ID={entrega_id} no encontrada.")
+        if self.db.conn.execute(
+            "SELECT id FROM employees WHERE id = ? AND estado = 'activo'", (repartidor_id,)
+        ).fetchone() is None:
+            raise EntidadNoEncontrada(
+                f"Repartidor con ID={repartidor_id} no encontrado o no esta activo."
+            )
         self.db.conn.execute(
             "UPDATE deliveries SET repartidor_id = ? WHERE id = ?",
             (repartidor_id, entrega_id),
@@ -563,7 +724,9 @@ class ComponenteLogistica:
     def registrarSalidaBodega(self, entrega_id: int) -> None:
         estado = self.componente_entregas.getEstadoEntrega(entrega_id)
         if estado != "programada":
-            raise ValueError("Solo se puede registrar salida para entregas programadas.")
+            raise ReglaDeNegocio(
+                f"La entrega #{entrega_id} no esta programada (estado actual: {estado})."
+            )
 
     def getPedidosPorEntregar(self) -> List[sqlite3.Row]:
         return list(

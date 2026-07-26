@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import List
 
 from src_shared import PoliMarketServicios, crear_servicios
+from src_shared.exceptions import PoliMarketError
 
 
 class ConsolaPoliMarket:
@@ -27,27 +28,32 @@ class ConsolaPoliMarket:
             print("9. Salir")
             opcion = input("Seleccione una opcion: ").strip()
 
-            if opcion == "1":
-                self._listar_vendedores()
-            elif opcion == "2":
-                self._autorizar_vendedor()
-            elif opcion == "3":
-                self._crear_pedido()
-            elif opcion == "4":
-                self._verificar_stock()
-            elif opcion == "5":
-                self._programar_entrega()
-            elif opcion == "6":
-                self._confirmar_entrega()
-            elif opcion == "7":
-                self._listar_ordenes_compra()
-            elif opcion == "8":
-                self._recibir_orden_compra()
-            elif opcion == "9":
-                print("Saliendo...")
-                break
-            else:
-                print("Opcion invalida.")
+            try:
+                if opcion == "1":
+                    self._listar_vendedores()
+                elif opcion == "2":
+                    self._autorizar_vendedor()
+                elif opcion == "3":
+                    self._crear_pedido()
+                elif opcion == "4":
+                    self._verificar_stock()
+                elif opcion == "5":
+                    self._programar_entrega()
+                elif opcion == "6":
+                    self._confirmar_entrega()
+                elif opcion == "7":
+                    self._listar_ordenes_compra()
+                elif opcion == "8":
+                    self._recibir_orden_compra()
+                elif opcion == "9":
+                    print("Saliendo...")
+                    break
+                else:
+                    print("Opcion invalida.")
+            except PoliMarketError as e:
+                print(f"\n[ERROR] {e}")
+            except (ValueError, TypeError) as e:
+                print(f"\n[ERROR] Entrada invalida: {e}")
 
     def _listar_vendedores(self) -> None:
         vendedores = self.servicios.componentes_rrhh.listarVendedoresActivos()
@@ -87,7 +93,8 @@ class ConsolaPoliMarket:
             items.append((int(producto_id_txt), cantidad))
 
         if len(items) == 0:
-            raise ValueError("Debe agregar al menos un producto.")
+            print("[ERROR] Debe agregar al menos un producto.")
+            return
 
         pedido_id, estado = self.servicios.componentes_ventas.crearPedido(cliente_id, vendedor_id, items)
         print(f"Pedido #{pedido_id} creado.")
@@ -137,7 +144,8 @@ class ConsolaPoliMarket:
             )
         )
         if len(items) == 0:
-            raise ValueError("La orden no tiene items.")
+            print(f"[ERROR] La orden #{orden_id} no tiene items o no existe.")
+            return
         for item in items:
             self.servicios.componentes_movimientos.registrarEntrada(
                 int(item["producto_id"]),
