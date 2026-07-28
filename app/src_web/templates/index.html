@@ -4,6 +4,8 @@
     <meta charset="utf-8">
     <title>PoliMarket - Cliente Web (Flask)</title>
     <style>
+        @import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap");
+
         :root {
             color-scheme: light;
             --bg: #f4f7ff;
@@ -19,14 +21,19 @@
             --warning: #b45309;
             --danger: #b91c1c;
             --shadow: 0 18px 45px rgba(15, 23, 42, 0.08);
+            --hero-shadow: 0 28px 60px rgba(10, 38, 96, 0.28);
         }
 
         * { box-sizing: border-box; }
         body {
-            font-family: Inter, "Segoe UI", Roboto, Arial, sans-serif;
+            font-family: "Space Grotesk", "Segoe UI", sans-serif;
             margin: 0;
-            background: linear-gradient(135deg, #f8fbff 0%, var(--bg) 100%);
+            background:
+                radial-gradient(circle at 10% 0%, #dbeafe 0%, rgba(219, 234, 254, 0) 42%),
+                radial-gradient(circle at 90% 10%, #bfdbfe 0%, rgba(191, 219, 254, 0) 48%),
+                linear-gradient(135deg, #f8fbff 0%, var(--bg) 100%);
             color: var(--text);
+            min-height: 100vh;
         }
         .app-shell { max-width: 1220px; margin: 0 auto; padding: 24px 20px 40px; }
         .hero {
@@ -34,12 +41,25 @@
             justify-content: space-between;
             align-items: center;
             gap: 16px;
-            padding: 24px 28px;
+            padding: 30px 32px;
             border-radius: 24px;
-            background: linear-gradient(120deg, #0f172a 0%, #1d4ed8 45%, #3b82f6 100%);
+            background:
+                radial-gradient(circle at 85% 10%, rgba(255,255,255,0.22), rgba(255,255,255,0) 32%),
+                linear-gradient(120deg, #0f172a 0%, #1d4ed8 45%, #3b82f6 100%);
             color: #fff;
-            box-shadow: var(--shadow);
+            box-shadow: var(--hero-shadow);
             margin-bottom: 18px;
+            position: relative;
+            overflow: hidden;
+        }
+        .hero::after {
+            content: "";
+            position: absolute;
+            inset: auto -70px -90px auto;
+            width: 240px;
+            height: 240px;
+            background: radial-gradient(circle, rgba(255,255,255,0.28) 0%, rgba(255,255,255,0) 70%);
+            pointer-events: none;
         }
         .eyebrow {
             display: inline-block;
@@ -54,26 +74,371 @@
             font-weight: 700;
         }
         .hero h1, .hero h2, .hero h3 { margin: 0 0 6px; }
+        .hero h1 {
+            font-size: clamp(1.35rem, 2vw, 2rem);
+            letter-spacing: -0.01em;
+        }
         .hero p { margin: 0; opacity: 0.92; max-width: 620px; }
+        .hero-copy {
+            position: relative;
+            z-index: 1;
+        }
+        .hero-stats {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(120px, 1fr));
+            gap: 8px;
+            min-width: 280px;
+            position: relative;
+            z-index: 1;
+        }
         .hero-badge {
             background: rgba(255,255,255,0.18);
             border: 1px solid rgba(255,255,255,0.22);
             padding: 10px 12px;
             border-radius: 14px;
             font-weight: 700;
-            white-space: nowrap;
+            display: grid;
+            gap: 2px;
+        }
+        .hero-badge strong {
+            font-size: 1.05rem;
+            line-height: 1.1;
+        }
+        .hero-badge span {
+            font-size: 0.78rem;
+            opacity: 0.9;
         }
         h2, h3 { margin: 0 0 8px; }
-                .card {
-                        border: 1px solid var(--border);
-                        background: var(--surface);
-                        padding: 18px;
-                        margin-bottom: 16px;
-                        border-radius: 18px;
-                        box-shadow: var(--shadow);
-                        backdrop-filter: blur(8px);
-                        transition: transform 0.18s ease, box-shadow 0.18s ease;
-                }
+        .card {
+            border: 1px solid var(--border);
+            background: var(--surface);
+            padding: 18px;
+            margin-bottom: 16px;
+            border-radius: 18px;
+            box-shadow: var(--shadow);
+            backdrop-filter: blur(8px);
+            transition: transform 0.18s ease, box-shadow 0.18s ease;
+        }
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 20px 45px rgba(15, 23, 42, 0.12);
+        }
+        .tab-menu {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin: 0 0 16px;
+            padding: 8px;
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            background: var(--surface-strong);
+            box-shadow: var(--shadow);
+        }
+        .tab-button {
+            border: 1px solid transparent;
+            border-radius: 999px;
+            background: #eef4ff;
+            color: var(--text);
+            font-weight: 700;
+            padding: 10px 14px;
+            cursor: pointer;
+            transition: all 0.18s ease;
+        }
+        .tab-button:hover {
+            background: #dbeafe;
+            border-color: #bfdbfe;
+        }
+        .tab-button.active {
+            background: var(--primary);
+            color: #fff;
+            border-color: var(--primary-strong);
+        }
+        .tab-panel {
+            display: none;
+        }
+        .tab-panel.active {
+            display: block;
+        }
+        .split {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 16px;
+        }
+        .card-title-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+        }
+        .card-icon {
+            font-size: 1.2rem;
+        }
+        label {
+            display: block;
+            font-size: 0.92em;
+            margin: 10px 0 6px;
+            color: var(--muted);
+            font-weight: 600;
+        }
+        select, input {
+            width: 100%;
+            border: 1px solid #cbd5e1;
+            border-radius: 10px;
+            padding: 10px 12px;
+            background: #fff;
+            color: var(--text);
+            outline: none;
+        }
+        select:focus, input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+        }
+        .item-row {
+            display: grid;
+            grid-template-columns: 1fr 140px auto;
+            gap: 10px;
+            margin-bottom: 10px;
+            align-items: center;
+        }
+        .form-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 12px;
+        }
+        .btn {
+            border: 1px solid transparent;
+            border-radius: 10px;
+            font-weight: 700;
+            padding: 10px 14px;
+            cursor: pointer;
+            transition: all 0.18s ease;
+        }
+        .btn:disabled {
+            opacity: 0.55;
+            cursor: not-allowed;
+        }
+        .btn-primary {
+            background: var(--primary);
+            border-color: var(--primary-strong);
+            color: #fff;
+        }
+        .btn-primary:hover:not(:disabled) {
+            background: var(--primary-strong);
+        }
+        .btn-secondary {
+            background: var(--secondary);
+            border-color: #cbd5e1;
+            color: var(--text);
+        }
+        .btn-secondary:hover:not(:disabled) {
+            background: #dbe5f2;
+        }
+        .btn-danger-sm {
+            background: var(--danger);
+            color: #fff;
+            border-color: #991b1b;
+            padding: 8px 10px;
+            min-width: 40px;
+        }
+        .btn-danger-sm:hover:not(:disabled) {
+            background: #991b1b;
+        }
+        .table-wrap {
+            overflow-x: auto;
+            border: 1px solid #dbe3f3;
+            border-radius: 14px;
+            background: #fff;
+        }
+        .data-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            min-width: 560px;
+        }
+        .data-table thead th {
+            position: sticky;
+            top: 0;
+            z-index: 1;
+            background: linear-gradient(180deg, #f0f5ff 0%, #e9f0ff 100%);
+            color: #1e3a8a;
+            text-align: left;
+            font-size: 0.82rem;
+            letter-spacing: 0.03em;
+            text-transform: uppercase;
+            padding: 12px 14px;
+            border-bottom: 1px solid #d5e0f5;
+        }
+        .data-table tbody td {
+            padding: 12px 14px;
+            border-bottom: 1px solid #edf2ff;
+            vertical-align: middle;
+            font-size: 0.92rem;
+        }
+        .data-table tbody tr:nth-child(even) {
+            background: #f9fbff;
+        }
+        .data-table tbody tr:hover {
+            background: #eef4ff;
+        }
+        .data-table tbody tr:last-child td {
+            border-bottom: 0;
+        }
+        .status-chip {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 0.78rem;
+            padding: 4px 8px;
+            border-radius: 999px;
+            border: 1px solid transparent;
+        }
+        .status-ok {
+            color: #166534;
+            background: #dcfce7;
+            border-color: #bbf7d0;
+        }
+        .status-off {
+            color: #991b1b;
+            background: #fee2e2;
+            border-color: #fecaca;
+        }
+        .table-empty {
+            text-align: center;
+            color: #64748b;
+            font-style: italic;
+            padding: 18px 12px;
+        }
+        .toast-stack {
+            position: fixed;
+            top: 18px;
+            right: 18px;
+            width: min(360px, calc(100vw - 24px));
+            display: grid;
+            gap: 10px;
+            z-index: 9999;
+        }
+        .toast {
+            border-radius: 14px;
+            padding: 12px 14px;
+            border: 1px solid transparent;
+            box-shadow: 0 14px 28px rgba(15, 23, 42, 0.18);
+            background: #ffffff;
+            color: #0f172a;
+            transform: translateX(0);
+            opacity: 1;
+            transition: transform 0.25s ease, opacity 0.25s ease;
+        }
+        .toast.hide {
+            transform: translateX(22px);
+            opacity: 0;
+        }
+        .toast-title {
+            display: block;
+            font-size: 0.82rem;
+            letter-spacing: 0.03em;
+            text-transform: uppercase;
+            font-weight: 700;
+            margin-bottom: 4px;
+            opacity: 0.9;
+        }
+        .toast-message {
+            display: block;
+            line-height: 1.35;
+            font-size: 0.92rem;
+            font-weight: 600;
+        }
+        .toast-success {
+            border-color: #86efac;
+            background: #f0fdf4;
+            color: #166534;
+        }
+        .toast-info {
+            border-color: #93c5fd;
+            background: #eff6ff;
+            color: #1d4ed8;
+        }
+        .toast-warning {
+            border-color: #fcd34d;
+            background: #fffbeb;
+            color: #92400e;
+        }
+        .toast-danger {
+            border-color: #fca5a5;
+            background: #fef2f2;
+            color: #991b1b;
+        }
+        @media (max-width: 900px) {
+            .split {
+                grid-template-columns: 1fr;
+            }
+            .item-row {
+                grid-template-columns: 1fr;
+            }
+            .hero {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            .hero-stats {
+                width: 100%;
+                min-width: 0;
+            }
+            .table-wrap {
+                border-radius: 12px;
+            }
+            .data-table {
+                min-width: 520px;
+            }
+            .toast-stack {
+                top: 10px;
+                right: 10px;
+                left: 10px;
+                width: auto;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="app-shell">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    <div class="toast-stack" aria-live="polite" aria-atomic="true">
+        {% for category, message in messages %}
+        <div class="toast toast-{{ category }}" role="status">
+            <span class="toast-title">{{ category|upper }}</span>
+            <span class="toast-message">{{ message }}</span>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    {% endwith %}
+
+    <header class="hero">
+        <div class="hero-copy">
+            <p class="eyebrow">Panel Operativo</p>
+            <h1>PoliMarket Control Center</h1>
+            <p>Gestiona autorizaciones, pedidos, reposiciones y entregas desde una sola vista con navegación por módulos RF.</p>
+        </div>
+        <div class="hero-stats" aria-label="Resumen rápido">
+            <div class="hero-badge">
+                <strong>{{ vendedores|length }}</strong>
+                <span>Vendedores</span>
+            </div>
+            <div class="hero-badge">
+                <strong>{{ productos|length }}</strong>
+                <span>Productos</span>
+            </div>
+            <div class="hero-badge">
+                <strong>{{ ordenes_pendientes|length }}</strong>
+                <span>Órdenes pendientes</span>
+            </div>
+            <div class="hero-badge">
+                <strong>{{ entregas_pendientes|length }}</strong>
+                <span>Entregas por confirmar</span>
+            </div>
+        </div>
+    </header>
 
     <nav class="tab-menu">
         <button class="tab-button" data-tab="tab-rf1" type="button">RF1 · Autorizar vendedor</button>
@@ -285,6 +650,8 @@
     </section>
 
     {% include '_consultas.html' %}
+
+</div>
 
     <script>
         // ── Tab management ──────────────────────────────────────────
