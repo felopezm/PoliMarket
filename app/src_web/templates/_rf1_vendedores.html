@@ -1,0 +1,5 @@
+<!-- Partial: options for vendedor selects -->
+<option value="">— Seleccione vendedor —</option>
+{% for v in vendedores %}
+<option value="{{ v.id }}">{{ v.nombre }} · {{ v.codigo_vendedor }} · Zona {{ v.zona }}{% if v.autorizado == 1 %} ✔ ya autorizado{% endif %}</option>
+{% endfor %}

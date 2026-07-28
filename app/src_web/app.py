@@ -2,6 +2,10 @@ from pathlib import Path
 import sys
 
 from flask import Flask, flash, g, redirect, render_template, request, url_for
+import json
+import queue
+from threading import Thread
+from time import sleep
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
@@ -33,6 +37,8 @@ def _parse_items_form() -> list[tuple[int, int]]:
 def create_app() -> Flask:
     app = Flask(__name__)
     app.config["SECRET_KEY"] = "polimarket-web-secret"
+    # Simple in-memory broadcaster for Server-Sent Events (SSE)
+    app.broadcaster = []  # list of queue.Queue()
 
     def get_servicios():
         if "servicios" not in g:
@@ -109,6 +115,18 @@ def create_app() -> Flask:
             autorizado_por = int(request.form["autorizado_por"])
             servicios.componentes_rrhh.autorizarVendedor(vendedor_id, autorizado_por)
             flash("RF1: Vendedor autorizado exitosamente.", "success")
+            # notify connected clients (general change)
+            for q in list(app.broadcaster):
+                try:
+                    q.put(json.dumps({"type": "data-changed", "tab": active_tab}))
+                except Exception:
+                    pass
+            # specifically notify that vendedor list changed so clients can refresh selects
+            for q in list(app.broadcaster):
+                try:
+                    q.put(json.dumps({"type": "vendedores-changed"}))
+                except Exception:
+                    pass
         except PoliMarketError as e:
             flash(f"RF1 Error: {e}", "danger")
         except (ValueError, TypeError) as e:
@@ -131,6 +149,12 @@ def create_app() -> Flask:
                     f"RF2: Pedido #{pedido_id} pendiente por falta de stock.",
                     "warning",
                 )
+            # notify clients
+            for q in list(app.broadcaster):
+                try:
+                    q.put(json.dumps({"type": "data-changed", "tab": active_tab}))
+                except Exception:
+                    pass
         except PoliMarketError as e:
             flash(f"RF2 Error: {e}", "danger")
         except (ValueError, TypeError) as e:
@@ -151,6 +175,11 @@ def create_app() -> Flask:
                 f"RF3: Disponibilidad={estado}, stock actual={actual} unidades.",
                 "info",
             )
+            for q in list(app.broadcaster):
+                try:
+                    q.put(json.dumps({"type": "data-changed", "tab": active_tab}))
+                except Exception:
+                    pass
         except PoliMarketError as e:
             flash(f"RF3 Error: {e}", "danger")
         except (ValueError, TypeError) as e:
@@ -180,6 +209,11 @@ def create_app() -> Flask:
                 )
             servicios.componentes_ordenes.confirmarRecepcion(orden_id)
             flash(f"RF4: Orden #{orden_id} recibida y stock repuesto.", "success")
+            for q in list(app.broadcaster):
+                try:
+                    q.put(json.dumps({"type": "data-changed", "tab": active_tab}))
+                except Exception:
+                    pass
         except PoliMarketError as e:
             flash(f"RF4 Error: {e}", "danger")
         except (ValueError, TypeError) as e:
@@ -200,6 +234,11 @@ def create_app() -> Flask:
                 fecha_programada,
             )
             flash(f"RF5: Entrega #{entrega_id} programada exitosamente.", "success")
+            for q in list(app.broadcaster):
+                try:
+                    q.put(json.dumps({"type": "data-changed", "tab": active_tab}))
+                except Exception:
+                    pass
         except PoliMarketError as e:
             flash(f"RF5 Error: {e}", "danger")
         except (ValueError, TypeError) as e:
@@ -215,11 +254,70 @@ def create_app() -> Flask:
             servicios.componentes_entregas.confirmarEntrega(entrega_id)
             estado = servicios.componentes_entregas.getEstadoEntrega(entrega_id)
             flash(f"RF5: Entrega #{entrega_id} confirmada. Estado={estado}.", "success")
+            for q in list(app.broadcaster):
+                try:
+                    q.put(json.dumps({"type": "data-changed", "tab": active_tab}))
+                except Exception:
+                    pass
         except PoliMarketError as e:
             flash(f"RF5 Error: {e}", "danger")
         except (ValueError, TypeError) as e:
             flash(f"RF5 Error de entrada: {e}", "danger")
         return redirect(url_for("index", tab=active_tab))
+
+    @app.get('/_partial/consultas')
+    def partial_consultas():
+        servicios = get_servicios()
+        vendedores = servicios.componentes_rrhh.listarVendedoresActivos()
+        clientes = servicios.componentes_clientes.listarClientes()
+        productos = servicios.componentes_catalogo.listarProductos()
+        ordenes_pendientes = servicios.componentes_ordenes.listarOrdenesPendientes()
+        entregas_pendientes = servicios.componentes_entregas.listarEntregasPendientes()
+        stock_actual = {
+            row['product_id']: row['cantidad_disponible']
+            for row in servicios.db.conn.execute('SELECT product_id, cantidad_disponible FROM stock')
+        }
+        pedidos = list(servicios.db.conn.execute(
+            """
+            SELECT o.id, o.fecha, o.estado, o.total, c.nombre AS cliente, e.nombre AS vendedor
+            FROM orders o
+            JOIN clients c ON c.id = o.cliente_id
+            JOIN employees e ON e.id = o.vendedor_id
+            ORDER BY o.id DESC
+            LIMIT 30
+            """
+        ))
+        return render_template('_consultas.html',
+                               vendedores=vendedores,
+                               clientes=clientes,
+                               productos=productos,
+                               ordenes_pendientes=ordenes_pendientes,
+                               entregas_pendientes=entregas_pendientes,
+                               stock_actual=stock_actual,
+                               pedidos=pedidos)
+
+    @app.get('/_partial/rf1_vendedores')
+    def partial_rf1_vendedores():
+        servicios = get_servicios()
+        vendedores = servicios.componentes_rrhh.listarVendedoresActivos()
+        return render_template('_rf1_vendedores.html', vendedores=vendedores)
+
+    @app.get('/events')
+    def events():
+        def gen(q: 'queue.Queue'):
+            try:
+                while True:
+                    data = q.get()
+                    yield f"data: {data}\n\n"
+            finally:
+                try:
+                    app.broadcaster.remove(q)
+                except Exception:
+                    pass
+
+        q = queue.Queue()
+        app.broadcaster.append(q)
+        return app.response_class(gen(q), mimetype='text/event-stream')
 
     return app
 
