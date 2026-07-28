@@ -1,0 +1,103 @@
+<!-- Partial: Consultas (rendered independently for live updates) -->
+<section id="tab-consultas" class="tab-panel">
+    <div class="split">
+        <div class="card">
+            <div class="card-title-row">
+                <h3>Vendedores activos</h3>
+                <span class="card-icon" aria-hidden="true">👥</span>
+            </div>
+            <table>
+                <tr><th>ID</th><th>Nombre</th><th>Codigo</th><th>Zona</th><th>Autorizado</th></tr>
+                {% for v in vendedores %}
+                <tr>
+                    <td>{{ v.id }}</td><td>{{ v.nombre }}</td><td>{{ v.codigo_vendedor }}</td>
+                    <td>{{ v.zona }}</td>
+                    <td style="color:{{ '#1a5c2c' if v.autorizado == 1 else '#7a1a1a' }}">{{ "✔ SI" if v.autorizado == 1 else "✗ NO" }}</td>
+                </tr>
+                {% endfor %}
+            </table>
+        </div>
+        <div class="card">
+            <div class="card-title-row">
+                <h3>Clientes</h3>
+                <span class="card-icon" aria-hidden="true">🧑‍💼</span>
+            </div>
+            <table>
+                <tr><th>ID</th><th>Nombre</th><th>Email</th></tr>
+                {% for c in clientes %}
+                <tr><td>{{ c.id }}</td><td>{{ c.nombre }}</td><td>{{ c.email }}</td></tr>
+                {% endfor %}
+            </table>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-title-row">
+            <h3>Productos y stock actual</h3>
+            <span class="card-icon" aria-hidden="true">📊</span>
+        </div>
+        <table>
+            <tr><th>ID</th><th>Nombre</th><th>Precio</th><th>Categoría</th><th>Stock actual</th></tr>
+            {% for p in productos %}
+            <tr>
+                <td>{{ p.id }}</td><td>{{ p.nombre }}</td>
+                <td>${{ "%.2f"|format(p.precio) }}</td><td>{{ p.categoria }}</td>
+                <td>{{ stock_actual.get(p.id, 0) }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+
+    <div class="card">
+        <div class="card-title-row">
+            <h3>Pedidos recientes (últimos 30)</h3>
+            <span class="card-icon" aria-hidden="true">🧾</span>
+        </div>
+        <table>
+            <tr><th>ID</th><th>Fecha</th><th>Cliente</th><th>Vendedor</th><th>Estado</th><th>Total</th></tr>
+            {% for p in pedidos %}
+            <tr>
+                <td>{{ p.id }}</td><td>{{ p.fecha[:16] }}</td><td>{{ p.cliente }}</td>
+                <td>{{ p.vendedor }}</td><td>{{ p.estado }}</td>
+                <td>${{ "%.2f"|format(p.total) }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+
+    <div class="split">
+        <div class="card">
+            <div class="card-title-row">
+                <h3>Órdenes de compra pendientes</h3>
+                <span class="card-icon" aria-hidden="true">🧾</span>
+            </div>
+            <table>
+                <tr><th>ID</th><th>Proveedor</th><th>Fecha</th><th>Total</th></tr>
+                {% for o in ordenes_pendientes %}
+                <tr>
+                    <td>{{ o.id }}</td><td>{{ o.proveedor }}</td>
+                    <td>{{ o.fecha[:10] }}</td><td>${{ "%.2f"|format(o.total) }}</td>
+                </tr>
+                {% endfor %}
+                {% if not ordenes_pendientes %}<tr><td colspan="4" style="color:#888">Sin órdenes pendientes</td></tr>{% endif %}
+            </table>
+        </div>
+        <div class="card">
+            <div class="card-title-row">
+                <h3>Entregas pendientes</h3>
+                <span class="card-icon" aria-hidden="true">⏳</span>
+            </div>
+            <table>
+                <tr><th>ID</th><th>Pedido</th><th>Repartidor ID</th><th>Fecha prog.</th><th>Estado</th></tr>
+                {% for e in entregas_pendientes %}
+                <tr>
+                    <td>{{ e.id }}</td><td>#{{ e.pedido_id }}</td>
+                    <td>{{ e.repartidor_id }}</td><td>{{ e.fecha_programada }}</td>
+                    <td>{{ e.estado }}</td>
+                </tr>
+                {% endfor %}
+                {% if not entregas_pendientes %}<tr><td colspan="5" style="color:#888">Sin entregas pendientes</td></tr>{% endif %}
+            </table>
+        </div>
+    </div>
+</section>
