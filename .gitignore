@@ -22,9 +22,6 @@ htmlcov/
 *.tmp
 *.bak
 
-# SQLite/local databases
-*.db
-*.sqlite3
 
 # Environment variables / secrets
 .env
