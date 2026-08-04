@@ -37,17 +37,17 @@ AutorizacionVendedor --> Vendedor
 AutorizacionVendedor --> Empleado
 Pedido --> Cliente
 Pedido --> Vendedor
-DetallePedido *-- Pedido
+DetallePedido --* Pedido
 DetallePedido --> Producto
 Stock --> Producto
-MovimientoStock *-- Stock
+MovimientoStock --* Stock
 OrdenCompra --> Proveedor
-ItemOrdenCompra *-- OrdenCompra
+ItemOrdenCompra --* OrdenCompra
 ItemOrdenCompra --> Producto
 Entrega --> Pedido
 Entrega --> Empleado
-DetalleEntrega *-- Entrega
-DetalleEntrega --> MovimientoStock
+DetalleEntrega --* Entrega
+DetallePedido --> MovimientoStock
 ```
 
 ---
