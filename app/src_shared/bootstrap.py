@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .components import (
+    # implementations 
     ComponenteCatalogo,
     ComponenteClientes,
     ComponenteEmpleados,
@@ -12,6 +13,17 @@ from .components import (
     ComponenteRRHH,
     ComponenteStock,
     ComponenteVentas,
+    # interface 
+    IComponenteCatalogo,
+    IComponenteClientes,
+    IComponenteEmpleados,
+    IComponenteEntregas,
+    IComponenteLogistica,
+    IComponenteMovimientos,
+    IComponenteOrdenesCompra,
+    IComponenteRRHH,
+    IComponenteStock,
+    IComponenteVentas,
 )
 from .database import Database
 
@@ -19,16 +31,16 @@ from .database import Database
 @dataclass
 class PoliMarketServicios:
     db: Database
-    componentes_empleados: ComponenteEmpleados
-    componentes_rrhh: ComponenteRRHH
-    componentes_catalogo: ComponenteCatalogo
-    componentes_clientes: ComponenteClientes
-    componentes_ordenes: ComponenteOrdenesCompra
-    componentes_stock: ComponenteStock
-    componentes_movimientos: ComponenteMovimientos
-    componentes_ventas: ComponenteVentas
-    componentes_entregas: ComponenteEntregas
-    componentes_logistica: ComponenteLogistica
+    componentes_empleados: IComponenteEmpleados
+    componentes_rrhh: IComponenteRRHH
+    componentes_catalogo: IComponenteCatalogo
+    componentes_clientes: IComponenteClientes
+    componentes_ordenes: IComponenteOrdenesCompra
+    componentes_stock: IComponenteStock
+    componentes_movimientos: IComponenteMovimientos
+    componentes_ventas: IComponenteVentas
+    componentes_entregas: IComponenteEntregas
+    componentes_logistica: IComponenteLogistica
 
 
 def crear_servicios(db_path: Path) -> PoliMarketServicios:

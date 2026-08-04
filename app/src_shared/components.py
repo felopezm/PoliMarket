@@ -1,14 +1,155 @@
 from __future__ import annotations
 
 import sqlite3
-from typing import List, Sequence
+from typing import List, Sequence, Optional
 
 from .common import now_iso
 from .database import Database
 from .exceptions import EntidadNoEncontrada, ReglaDeNegocio, VendedorNoAutorizado
 
+from abc import ABC, abstractmethod
 
-class ComponenteEmpleados:
+
+# Interfaces (ABCs) 
+class IComponenteEmpleados(ABC):
+    @abstractmethod
+    def registrarEmpleado(self, datos: dict) -> int: ...
+
+    @abstractmethod
+    def actualizarEmpleado(self, employee_id: int, datos: dict) -> None: ...
+
+    @abstractmethod
+    def getEmpleado(self, employee_id: int) -> Optional[sqlite3.Row]: ...
+
+    @abstractmethod
+    def listarEmpleados(self) -> List[sqlite3.Row]: ...
+
+
+class IComponenteRRHH(ABC):
+    @abstractmethod
+    def autorizarVendedor(self, vendedor_id: int, autorizado_por: int) -> None: ...
+
+    @abstractmethod
+    def revocarAutorizacion(self, vendedor_id: int) -> None: ...
+
+    @abstractmethod
+    def verificarAutorizacion(self, vendedor_id: int) -> bool: ...
+
+    @abstractmethod
+    def listarVendedoresActivos(self) -> List[sqlite3.Row]: ...
+
+
+class IComponenteCatalogo(ABC):
+    @abstractmethod
+    def getProducto(self, producto_id: int) -> Optional[sqlite3.Row]: ...
+
+    @abstractmethod
+    def listarProductos(self) -> List[sqlite3.Row]: ...
+
+    @abstractmethod
+    def buscarProducto(self, filtro: str) -> List[sqlite3.Row]: ...
+
+    @abstractmethod
+    def getPrecio(self, producto_id: int) -> float: ...
+
+
+class IComponenteClientes(ABC):
+    @abstractmethod
+    def registrarCliente(self, datos: dict) -> int: ...
+
+    @abstractmethod
+    def getCliente(self, cliente_id: int) -> Optional[sqlite3.Row]: ...
+
+    @abstractmethod
+    def listarClientes(self) -> List[sqlite3.Row]: ...
+
+    @abstractmethod
+    def getHistorialCompras(self, cliente_id: int) -> List[sqlite3.Row]: ...
+
+
+class IComponenteOrdenesCompra(ABC):
+    @abstractmethod
+    def emitirOrdenCompra(self, proveedor_id: int, items: Sequence[tuple[int, int, float]]) -> int: ...
+
+    @abstractmethod
+    def emitirOrdenCompraPorProducto(self, producto_id: int, cantidad_sugerida: int) -> Optional[int]: ...
+
+    @abstractmethod
+    def confirmarRecepcion(self, orden_id: int) -> None: ...
+
+    @abstractmethod
+    def listarOrdenesPendientes(self) -> List[sqlite3.Row]: ...
+
+    @abstractmethod
+    def getOrden(self, orden_id: int) -> Optional[sqlite3.Row]: ...
+
+
+class IComponenteStock(ABC):
+    @abstractmethod
+    def verificarDisponibilidad(self, producto_id: int, cantidad: int) -> bool: ...
+
+    @abstractmethod
+    def reducirStock(self, producto_id: int, cantidad: int) -> None: ...
+
+    @abstractmethod
+    def reponerStock(self, producto_id: int, cantidad: int) -> None: ...
+
+    @abstractmethod
+    def getStockActual(self, producto_id: int) -> int: ...
+
+
+class IComponenteMovimientos(ABC):
+    @abstractmethod
+    def registrarSalida(self, producto_id: int, cantidad: int, referencia: str) -> int: ...
+
+    @abstractmethod
+    def registrarEntrada(self, producto_id: int, cantidad: int, referencia: str) -> int: ...
+
+    @abstractmethod
+    def getHistorialMovimientos(self, producto_id: int) -> List[sqlite3.Row]: ...
+
+
+class IComponenteVentas(ABC):
+    @abstractmethod
+    def crearPedido(self, cliente_id: int, vendedor_id: int, items: Sequence[tuple[int, int]]) -> tuple[int, str]: ...
+
+    @abstractmethod
+    def confirmarPedido(self, pedido_id: int) -> bool: ...
+
+    @abstractmethod
+    def cancelarPedido(self, pedido_id: int) -> None: ...
+
+    @abstractmethod
+    def listarPedidosPorVendedor(self, vendedor_id: int) -> List[sqlite3.Row]: ...
+
+
+class IComponenteEntregas(ABC):
+    @abstractmethod
+    def programarEntrega(self, pedido_id: int, repartidor_id: int, fecha: str) -> int: ...
+
+    @abstractmethod
+    def confirmarEntrega(self, entrega_id: int) -> None: ...
+
+    @abstractmethod
+    def getEstadoEntrega(self, entrega_id: int) -> str: ...
+
+    @abstractmethod
+    def listarEntregasPendientes(self) -> List[sqlite3.Row]: ...
+
+
+class IComponenteLogistica(ABC):
+    @abstractmethod
+    def asignarRepartidor(self, entrega_id: int, repartidor_id: int) -> None: ...
+
+    @abstractmethod
+    def registrarSalidaBodega(self, entrega_id: int) -> None: ...
+
+    @abstractmethod
+    def getPedidosPorEntregar(self) -> List[sqlite3.Row]: ...
+
+
+
+class ComponenteEmpleados(IComponenteEmpleados):
     def __init__(self, db: Database) -> None:
         self.db = db
 
@@ -59,7 +200,7 @@ class ComponenteEmpleados:
         return list(self.db.conn.execute("SELECT * FROM employees ORDER BY id"))
 
 
-class ComponenteRRHH:
+class ComponenteRRHH(IComponenteRRHH):
     def __init__(self, db: Database) -> None:
         self.db = db
 
@@ -147,7 +288,7 @@ class ComponenteRRHH:
         )
 
 
-class ComponenteCatalogo:
+class ComponenteCatalogo(IComponenteCatalogo):
     def __init__(self, db: Database) -> None:
         self.db = db
 
@@ -177,7 +318,7 @@ class ComponenteCatalogo:
         return float(product["precio"])
 
 
-class ComponenteClientes:
+class ComponenteClientes(IComponenteClientes):
     def __init__(self, db: Database) -> None:
         self.db = db
 
@@ -214,7 +355,7 @@ class ComponenteClientes:
         )
 
 
-class ComponenteOrdenesCompra:
+class ComponenteOrdenesCompra(IComponenteOrdenesCompra):
     def __init__(self, db: Database) -> None:
         self.db = db
 
@@ -304,7 +445,7 @@ class ComponenteOrdenesCompra:
         return self.db.conn.execute("SELECT * FROM purchase_orders WHERE id = ?", (orden_id,)).fetchone()
 
 
-class ComponenteStock:
+class ComponenteStock(IComponenteStock):
     def __init__(self, db: Database, componente_ordenes: ComponenteOrdenesCompra) -> None:
         self.db = db
         self.componente_ordenes = componente_ordenes
@@ -374,7 +515,7 @@ class ComponenteStock:
         return int(row["cantidad_disponible"])
 
 
-class ComponenteMovimientos:
+class ComponenteMovimientos(IComponenteMovimientos):
     def __init__(self, db: Database, componente_stock: ComponenteStock) -> None:
         self.db = db
         self.componente_stock = componente_stock
@@ -420,7 +561,7 @@ class ComponenteMovimientos:
         )
 
 
-class ComponenteVentas:
+class ComponenteVentas(IComponenteVentas):
     def __init__(
         self,
         db: Database,
@@ -616,7 +757,7 @@ class ComponenteVentas:
 
 
 
-class ComponenteEntregas:
+class ComponenteEntregas(IComponenteEntregas):
     def __init__(self, db: Database, componente_movimientos: ComponenteMovimientos) -> None:
         self.db = db
         self.componente_movimientos = componente_movimientos
@@ -701,7 +842,7 @@ class ComponenteEntregas:
         )
 
 
-class ComponenteLogistica:
+class ComponenteLogistica(IComponenteLogistica):
     def __init__(self, db: Database, componente_entregas: ComponenteEntregas) -> None:
         self.db = db
         self.componente_entregas = componente_entregas
