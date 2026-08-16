@@ -6,6 +6,10 @@ from typing import List, Sequence, Optional
 from .common import now_iso
 from .database import Database
 from .exceptions import EntidadNoEncontrada, ReglaDeNegocio, VendedorNoAutorizado
+from .patterns.stock_observer import NotificadorOrdenesCompra, StockSubject
+from .patterns.orden_compra_builder import OrdenCompraBuilder
+from .patterns.estados import estado_desde_texto
+from .patterns.precio_strategy import resolver_estrategia
 
 from abc import ABC, abstractmethod
 
@@ -365,22 +369,29 @@ class ComponenteOrdenesCompra(IComponenteOrdenesCompra):
         ).fetchone()
         if proveedor is None:
             raise EntidadNoEncontrada(f"Proveedor con ID={proveedor_id} no encontrado.")
-        total = sum(cantidad * precio for _, cantidad, precio in items)
+
+        # Patron Builder: la orden solo "existe" si build() la valida completa,
+        # evitando registrar ordenes de compra sin ningun item (bug anterior).
+        builder = OrdenCompraBuilder().iniciar_orden(proveedor_id)
+        for producto_id, cantidad, precio in items:
+            builder.agregar_item(producto_id, cantidad, precio)
+        orden = builder.build()
+
         cursor = self.db.conn.execute(
             """
             INSERT INTO purchase_orders (proveedor_id, fecha, estado, total)
             VALUES (?, ?, 'pendiente', ?)
             """,
-            (proveedor_id, now_iso(), total),
+            (orden.proveedor_id, now_iso(), orden.total),
         )
         order_id = int(cursor.lastrowid)
-        for producto_id, cantidad, precio in items:
+        for item in orden.items:
             self.db.conn.execute(
                 """
                 INSERT INTO purchase_order_items (orden_id, producto_id, cantidad, precio_acordado)
                 VALUES (?, ?, ?, ?)
                 """,
-                (order_id, producto_id, cantidad, precio),
+                (order_id, item.producto_id, item.cantidad, item.precio_acordado),
             )
         self.db.conn.commit()
         return order_id
@@ -445,10 +456,17 @@ class ComponenteOrdenesCompra(IComponenteOrdenesCompra):
         return self.db.conn.execute("SELECT * FROM purchase_orders WHERE id = ?", (orden_id,)).fetchone()
 
 
-class ComponenteStock(IComponenteStock):
+class ComponenteStock(IComponenteStock, StockSubject):
+    """Rol «Subject» del patron Observer: notifica a sus observadores
+    (por ejemplo, Proveedores) cuando el stock cruza el minimo, sin
+    conocer directamente a ComponenteOrdenesCompra."""
+
     def __init__(self, db: Database, componente_ordenes: ComponenteOrdenesCompra) -> None:
+        StockSubject.__init__(self)
         self.db = db
         self.componente_ordenes = componente_ordenes
+        # Proveedores se suscribe al Subject sin que Bodega lo instancie.
+        self.suscribir(NotificadorOrdenesCompra(componente_ordenes))
 
     def verificarDisponibilidad(self, producto_id: int, cantidad: int) -> bool:
         stock = self.db.conn.execute(
@@ -461,8 +479,9 @@ class ComponenteStock(IComponenteStock):
             )
 
         if stock["cantidad_disponible"] < stock["cantidad_minima"]:
-            sugerida = max((stock["cantidad_minima"] * 2) - stock["cantidad_disponible"], stock["cantidad_minima"])
-            self.componente_ordenes.emitirOrdenCompraPorProducto(producto_id, int(sugerida))
+            self.notificar(
+                producto_id, int(stock["cantidad_disponible"]), int(stock["cantidad_minima"])
+            )
 
         return stock["cantidad_disponible"] >= cantidad
 
@@ -576,7 +595,13 @@ class ComponenteVentas(IComponenteVentas):
         self.componente_catalogo = componente_catalogo
         self.componente_movimientos = componente_movimientos
 
-    def crearPedido(self, cliente_id: int, vendedor_id: int, items: Sequence[tuple[int, int]]) -> tuple[int, str]:
+    def crearPedido(
+        self,
+        cliente_id: int,
+        vendedor_id: int,
+        items: Sequence[tuple[int, int]],
+        codigo_promo: str | None = None,
+    ) -> tuple[int, str]:
         # Validar que el cliente exista
         cliente = self.db.conn.execute(
             "SELECT id FROM clients WHERE id = ?", (cliente_id,)
@@ -600,11 +625,21 @@ class ComponenteVentas(IComponenteVentas):
                 f"El vendedor con ID={vendedor_id} no tiene autorizacion activa de RRHH."
             )
 
+        # Patron Strategy: el calculo del precio de cada detalle se delega
+        # en una estrategia elegida segun el historial del cliente o un
+        # codigo de promocion, en vez de aplicar siempre el precio de lista.
+        historial_previo = self.db.conn.execute(
+            "SELECT COUNT(*) AS total FROM orders WHERE cliente_id = ? AND estado != 'cancelado'",
+            (cliente_id,),
+        ).fetchone()["total"]
+        estrategia_precio = resolver_estrategia(int(historial_previo), codigo_promo)
+
         disponibilidad_completa = True
         detalles: List[tuple[int, int, float]] = []
         for producto_id, cantidad in items:
-            precio = self.componente_catalogo.getPrecio(producto_id)
-            detalles.append((producto_id, cantidad, precio))
+            precio_base = self.componente_catalogo.getPrecio(producto_id)
+            precio_unitario = estrategia_precio.calcular(precio_base, cantidad) / cantidad
+            detalles.append((producto_id, cantidad, precio_unitario))
             if not self.componente_stock.verificarDisponibilidad(producto_id, cantidad):
                 disponibilidad_completa = False
 
@@ -673,10 +708,20 @@ class ComponenteVentas(IComponenteVentas):
         return True
 
     def cancelarPedido(self, pedido_id: int) -> None:
-        pedido = self.db.conn.execute("SELECT id FROM orders WHERE id = ?", (pedido_id,)).fetchone()
+        pedido = self.db.conn.execute(
+            "SELECT id, estado FROM orders WHERE id = ?", (pedido_id,)
+        ).fetchone()
         if pedido is None:
             raise EntidadNoEncontrada(f"Pedido con ID={pedido_id} no encontrado.")
-        self.db.conn.execute("UPDATE orders SET estado = 'cancelado' WHERE id = ?", (pedido_id,))
+
+        # Patron State: el estado actual decide si la transicion es valida.
+        # Antes de este cambio se podia cancelar un pedido ya 'entregado'.
+        estado_actual = estado_desde_texto(str(pedido["estado"]))
+        nuevo_estado = estado_actual.cancelar()
+
+        self.db.conn.execute(
+            "UPDATE orders SET estado = ? WHERE id = ?", (nuevo_estado.nombre, pedido_id)
+        )
         self.db.conn.commit()
 
     def listarPedidosPorVendedor(self, vendedor_id: int) -> List[sqlite3.Row]:
@@ -696,64 +741,6 @@ class ComponenteVentas(IComponenteVentas):
                 (vendedor_id,),
             )
         )
-
-
-    def crearPedido(self, cliente_id: int, vendedor_id: int, items: Sequence[tuple[int, int]]) -> tuple[int, str]:
-        # Validar que el cliente exista
-        cliente = self.db.conn.execute(
-            "SELECT id FROM clients WHERE id = ?", (cliente_id,)
-        ).fetchone()
-        if cliente is None:
-            raise EntidadNoEncontrada(f"Cliente con ID={cliente_id} no encontrado.")
-
-        # Validar que el vendedor exista y este activo
-        vendedor = self.db.conn.execute(
-            "SELECT id FROM employees WHERE id = ? AND is_seller = 1 AND estado = 'activo'",
-            (vendedor_id,),
-        ).fetchone()
-        if vendedor is None:
-            raise EntidadNoEncontrada(
-                f"Vendedor con ID={vendedor_id} no encontrado o no esta activo."
-            )
-
-        # Validar autorizacion RRHH
-        if not self.componente_rrhh.verificarAutorizacion(vendedor_id):
-            raise VendedorNoAutorizado(
-                f"El vendedor con ID={vendedor_id} no tiene autorizacion activa de RRHH."
-            )
-
-        disponibilidad_completa = True
-        detalles: List[tuple[int, int, float]] = []
-        for producto_id, cantidad in items:
-            precio = self.componente_catalogo.getPrecio(producto_id)
-            detalles.append((producto_id, cantidad, precio))
-            if not self.componente_stock.verificarDisponibilidad(producto_id, cantidad):
-                disponibilidad_completa = False
-
-        estado_inicial = "creado" if disponibilidad_completa else "pendiente_sin_stock"
-        cursor = self.db.conn.execute(
-            """
-            INSERT INTO orders (cliente_id, vendedor_id, fecha, estado, total)
-            VALUES (?, ?, ?, ?, 0)
-            """,
-            (cliente_id, vendedor_id, now_iso(), estado_inicial),
-        )
-        pedido_id = int(cursor.lastrowid)
-
-        for producto_id, cantidad, precio in detalles:
-            self.db.conn.execute(
-                """
-                INSERT INTO order_details (pedido_id, producto_id, cantidad, precio_unitario)
-                VALUES (?, ?, ?, ?)
-                """,
-                (pedido_id, producto_id, cantidad, precio),
-            )
-        self.db.conn.commit()
-
-        if disponibilidad_completa:
-            self.confirmarPedido(pedido_id)
-            return pedido_id, "confirmado"
-        return pedido_id, "pendiente_sin_stock"
 
 
 

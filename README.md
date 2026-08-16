@@ -13,43 +13,10 @@ El flujo principal es:
 
 ---
 
-## 2. Diagrama de clases UML (vista logica)
+## 2. Diagrama de clases UML (vista logica) y Diagrama de componentes
 
-```mermaid
-classDiagram
-class Empleado
-class Vendedor
-class AutorizacionVendedor
-class Cliente
-class Producto
-class Pedido
-class DetallePedido
-class Stock
-class MovimientoStock
-class Proveedor
-class OrdenCompra
-class ItemOrdenCompra
-class Entrega
-class DetalleEntrega
-
-Vendedor --|> Empleado
-AutorizacionVendedor --> Vendedor
-AutorizacionVendedor --> Empleado
-Pedido --> Cliente
-Pedido --> Vendedor
-DetallePedido --* Pedido
-DetallePedido --> Producto
-Stock --> Producto
-MovimientoStock --* Stock
-OrdenCompra --> Proveedor
-ItemOrdenCompra --* OrdenCompra
-ItemOrdenCompra --> Producto
-Entrega --> Pedido
-Entrega --> Empleado
-DetalleEntrega --* Entrega
-DetallePedido --> MovimientoStock
-```
-
+![Diagrama](./docs/Diagrama%20de%20clases%20UML%20GoF.png)
+![Diagrama](./docs/PoliMarket%20-%20Diagrama%20de%20Componentes%20con%20Patrones%20GoF.png)
 ---
 
 ## 3. Tabla de componentes
@@ -153,3 +120,42 @@ La aplicacion Flask implementa los mismos RF:
 - RF3: verificar disponibilidad de stock.
 - RF4: confirmar recepcion de ordenes de compra (las ordenes se generan automaticamente cuando stock cae bajo minimo).
 - RF5: programar y confirmar entrega.
+
+---
+
+## 9. Patrones de diseno GoF
+
+[#9-patrones-de-diseno-gof](#9-patrones-de-diseno-gof)
+
+A partir del diagrama de clases UML v2 (Facade, Proxy, Chain of Responsibility,
+Strategy, Observer, Builder y State), se incorporo la carpeta
+`app/src_shared/patterns/` con la implementacion de seis de esos patrones.
+Facade no se duplica como codigo nuevo porque ya esta cubierto
+estructuralmente por las clases `Componente*` de `components.py`, que son
+el unico punto de entrada de cada modulo de negocio.
+
+| Patron | Archivo | Donde se conecta con la app real |
+| --- | --- | --- |
+| State | `patterns/estados.py` | `ComponenteVentas.cancelarPedido` valida la transicion antes de escribir en `orders` (antes se podia cancelar un pedido ya entregado) |
+| Strategy | `patterns/precio_strategy.py` | `ComponenteVentas.crearPedido` elige la estrategia de precio segun el historial del cliente o un codigo de promocion |
+| Chain of Responsibility | `patterns/validadores_autorizacion.py` | Encadena zona asignada -> credito -> autorizacion RRHH |
+| Proxy | `patterns/ventas_proxy.py` | `bootstrap.crear_servicios` inyecta `ProxyVentas` (no `ComponenteVentas`) como `componentes_ventas`; corre la cadena de autorizacion antes de delegar |
+| Builder | `patterns/orden_compra_builder.py` | `ComponenteOrdenesCompra.emitirOrdenCompra` arma la orden con el builder, evitando ordenes sin items |
+| Observer | `patterns/stock_observer.py` | `ComponenteStock` es ahora un `StockSubject`; notifica a `NotificadorOrdenesCompra` en vez de llamar directamente a `ComponenteOrdenesCompra` |
+
+De paso se corrigieron dos defectos reales encontrados durante la
+implementacion: un metodo `crearPedido` duplicado dentro de
+`ComponenteVentas` (la segunda definicion pisaba silenciosamente a la
+primera) y la posibilidad de registrar una orden de compra sin items.
+
+Pruebas: `app/tests/test_patrones_gof.py` (19 casos, incluye pruebas de
+cada patron de forma aislada y pruebas de integracion contra la base de
+datos real).
+
+```bash
+py -3 -m pip install -r app/requirements-dev.txt
+cd app && py -3 -m pytest tests/test_patrones_gof.py -v
+```
+
+---
+
