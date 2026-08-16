@@ -26,6 +26,7 @@ from .components import (
     IComponenteVentas,
 )
 from .database import Database
+from .patterns.ventas_proxy import ProxyVentas
 
 
 @dataclass
@@ -55,13 +56,18 @@ def crear_servicios(db_path: Path) -> PoliMarketServicios:
     componentes_ordenes = ComponenteOrdenesCompra(db)
     componentes_stock = ComponenteStock(db, componentes_ordenes)
     componentes_movimientos = ComponenteMovimientos(db, componentes_stock)
-    componentes_ventas = ComponenteVentas(
+    ventas_core = ComponenteVentas(
         db,
         componentes_rrhh,
         componentes_stock,
         componentes_catalogo,
         componentes_movimientos,
     )
+    # Patron Proxy: el resto de la aplicacion (consola y web) recibe
+    # ProxyVentas, no ComponenteVentas directamente. Antes de delegar en
+    # el componente real, ProxyVentas corre la cadena de autorizacion
+    # (Chain of Responsibility) sobre el vendedor.
+    componentes_ventas: IComponenteVentas = ProxyVentas(ventas_core, db, componentes_rrhh)
     componentes_entregas = ComponenteEntregas(db, componentes_movimientos)
     componentes_logistica = ComponenteLogistica(db, componentes_entregas)
 
